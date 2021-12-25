@@ -101,9 +101,20 @@ local cases = {
 	{ 'Composed selectors, parentheses not changing the order of operations', { key1 = 'Value1', keyN = 'Unwanted' }, '<<(/^key/ /\\d$/)>>', 'Value1' },
 	{ 'Composition of two equal keys', { key = 'Value' }, '<<"key" "key">>', 'Value' },
 	{ 'key = value', { key = 'Value', clue = 'Value' }, '<<key = Value>>', 'Value' },
-	{ '/PCRE/ = value', { key1 = 'Value', clue = 'Value' }, '<</^key\\d+$/ = Value>>', 'Value' },
+	{ '/PCRE/ = value', { key1 = 'Value1', clue = 'Value2' }, '<</^key\\d+$/ = Value1>>', 'Value1' },
+	{ '= /pcre/', { key1 = 'Value1', clue = 'Value2' }, '<<= /^Value\\d+$/|<<>><<,>>>>', 'Value1, Value2' },
+	{ '/PCRE/ = /pcre/', { key1 = 'Value1', clue = 'Value2' }, '<</^key\\d+$/ = /^Value\\d+$/>>', 'Value1' },
+	{ 'Union all', { set1 = { 'Value10', 'Value11' }, set2 = { 'Value20', 'Value21' } }, '<< ( set1 + set2 ).# |<<>><<,>>>>', 'Value10, Value11, Value20, Value21' },
 	{ 'Separator, default', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,>>>>', '1: Value1, 2: Value2, 3: Value3' },
-	{ 'Separator, explicit', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,|; >>>>', '1: Value1; 2: Value2; 3: Value3' },	
+	{ 'Separator, explicit', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,|; >>>>', '1: Value1; 2: Value2; 3: Value3' },
+	{ 'Separator, dynamic', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' }, sep = '; ' }, '<<#|<<@>>: <<key>><<,|<<sep>>>>>>', '1: Value1; 2: Value2; 3: Value3' },	
+	{
+		'Separator, header and footer',
+		{ { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } },
+		'<<|Header <<#|<<@>>: <<key>><<,>>>> Footer>>',
+		'Header 1: Value1, 2: Value2, 3: Value3 Footer'
+	},
+	{ 'Separator, fallback', {}, '<<|Header <<#|<<@>>: <<key>><<,>>>> Footer|Fallback>>', 'Fallback' },
 }
 local tested = { 'Status\tDescription\tFormat\tExpected\tActual' }
 local succeeded, failed = 0, 0

@@ -397,6 +397,29 @@ local function enter (iterator1, iterator2)
 end
 
 --[[
+	Returns a table iterator that yields items yielded by the first and then the second iterator.
+	
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
+--]]
+local function union_all (iterator1, iterator2)
+	return function (tbl)
+		return wrap (function ()
+			for key1, value1, captures1 in iterator1 (tbl) do
+				yield (key1, value1, captures1)
+			end
+			for key2, value2, captures2 in iterator2 (tbl) do
+				yield (key2, value2, captures2)
+			end
+		end)
+	end
+end
+
+--[[
 	Implementation of # (ipairs) and * (pairs) selectors.
 	@param function func ipairs or pairs.
 	@return false (not nil) for absent values.
@@ -529,7 +552,8 @@ end
 
 local open, pipe, close, equals = '<<', '|', '>>', '='
 local parentheses = { '(', ')' }
-local dot, comma, at, underscore = '.', ',', '@', '_'
+local comma, at, underscore = ',', '@', '_'
+local dot, plus = '.', '+'
 
 -- Return the sum of the keys of a table, wrapped in lpeg.P(). Keys are ordered from longest to shortest:
 local function key_sum (tbl)
@@ -549,7 +573,7 @@ end
 
 local quotes = S[['"]]
 -- Rule for regular expression delimiter:
-local regex_delim = any - alnum - underscore - space - escape - quotes - pipe - parentheses [1] - parentheses[2] - dot - at
+local regex_delim = any - alnum - underscore - space - escape - quotes - pipe - parentheses [1] - parentheses[2] - dot - plus - at
 
 -- '', "", re'', re"", pcre'', pcre"", lua'', lua"", //, re//, pcre//, lua//:
 local selectors = {
@@ -577,49 +601,54 @@ end
 	Define the format string grammar
 --]]
 
+-- Selector 'arithmetics' indexed by priority:
+local operators = {
+	{ [empty]	= intersect	},
+	{ [dot]		= enter },
+	{ [plus]	= union_all }
+}
+
 --[[
-	Generate a grammar rule for selector 'atithmetics' of certain priority.
-	@param LPEG rule operand An LPEG rule for the operands.
-	@param table operators An associative table of functions indexed by operators.
-	@return function The resulting operation as a function returning a table iterator.
+	Generate a grammar rule for selector 'atithmetics' takinig into account priorities.
+	@param table operators A table indexed by priority of associative tables of functions indexed by operators.
+	@param LPEG rule operand An LPEG rule for the elementary operand.
+	@return function An LPEG rule that parses an 'arithmetic' expression over iterators.
 --]]
-local function priority (operand, operators)
-	return ( operand * space ^ 0 * Cg ( C ( key_sum (operators) ) * space ^ 0 * operand ) ^ 0 ):Cf ( function (selector1, operator, selector2)
-		return operators [operator] (selector1, selector2)
-	end )
+local function priorities (operators, atomic)
+	local operand = atomic
+	for priority, operators in ipairs (operators) do
+		operand = ( operand * space ^ 0 * Cg ( C ( key_sum (operators) ) * space ^ 0 * operand ) ^ 0 ):Cf ( function (selector1, operator, selector2)
+			return operators [operator] (selector1, selector2)
+		end )
+	end
+	return operand
 end
 
-local ipairs_token, pairs_token = P'#', P'*'
+local octothorpe, asterisk = P'#', P'*'
 
 local meta = P{V'format' * -1,
 	
 	format		= Ct ( ( V'macro' + V'literal' ) ^ 0 ) * V'separator' ^ 0 / make_formatter,
 
 	-- << selector |format|fallback|format|...|last fallback format>>:
-	macro		= P(open) * -P(comma) * V'selector' * ( ( pipe * V'format' ) ^ 1 + Cc { plain } ) * close / make_macro,
+	macro		= P(open) * -P(comma) * space ^ 0 * V'selector' * ( ( pipe * V'format' ) ^ 1 + Cc { plain } ) * close / make_macro,
 	
 	-- <<,>> | <<,selector>> | <<,selector|>>:
-	separator	= P(open) * comma * Cc (self) * ( ( pipe * V'format' ) ^ 1 + Cc { chunks2func ', ' } ) * close / make_macro,
+	separator	= P(open) * space ^ 0 * comma * Cc (self) * space ^ 0 * ( ( pipe * V'format' ) ^ 1 + Cc { chunks2func ', ' } ) * close / make_macro,
 	
 	-- Literal for the right half (formats) of <<|>>:
 	literal		= C ( any_except (open, pipe, close) ^ 1 ),
 		
-	selector	= V'priority1' + empty * Cc ( self ),
-	
-	-- Selector 'arithmetics':
-	priority1	= priority (V'simple', {
-		[dot]	= enter,
-		[empty]	= intersect
-	}),
+	selector	= priorities (operators, V'simple') + Cc ( self ),
 	
 	-- Possible table selectors for the left half of <<|>>:
 	simple		= parentheses [1] * V'selector' * parentheses [2] + V'ipairs' + V'pairs' + V'quoted' + V'func' + V'unquoted' + V'dynamic',
 	
 	-- # (ipairs() iterator):
-	ipairs		= ipairs_token * Cc (iterator (ipairs)),
+	ipairs		= octothorpe * Cc (iterator (ipairs)),
 	
 	-- * (pairs() iterator):
-	pairs		= pairs_token * Cc (iterator (pairs)),
+	pairs		= asterisk * Cc (iterator (pairs)),
 	
 	-- Optional equal sign:
 	equals		= ( equals * Cc (true) + Cc (false) ) * space ^ 0,
@@ -635,7 +664,7 @@ local meta = P{V'format' * -1,
 	parameter	= ( V'macro' + V'word' ) ^ 1 / chunks2func + quoted'"' + quoted"'",
 	
 	-- unquoted static iterator for values. Simple and faster than dynamic.
-	unquoted	= V'equals' * ( V'word' / try_tonumber / exactly ) * #( P (space) + dot + comma + pipe + close ) / table_iterator,
+	unquoted	= V'equals' * ( V'word' / try_tonumber / exactly ) * #( P (space) + dot + plus + comma + pipe + close ) / table_iterator,
 	
 	-- Single item selector with dynamic key. Empty selector means the variable itself rather than one of its items.
 	-- Returns false (not nil) for absent value:
@@ -648,7 +677,7 @@ local meta = P{V'format' * -1,
 	end,
 	
 	-- A word with no spaces but with <<>> tags:
-	word		= C( any_except (open, pipe, close, equals, quotes, regex_delim, parentheses [1], parentheses [2], dot, comma, space) ^ 1 ),
+	word		= C( any_except (open, pipe, close, equals, quotes, regex_delim, parentheses [1], parentheses [2], dot, plus, comma, space) ^ 1 ),
 }
 
 local p = { wrap = wrap_table, dump = dump }
