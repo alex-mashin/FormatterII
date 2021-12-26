@@ -20,11 +20,20 @@ end
 local cases = {
 	{ '{}, constant format', {}, 'const string', 'const string' },
 	{ 'Non-empty item, no format', { key = 'value' }, '"key" is "<<key>>"', '"key" is "value"' },
+	{ 'Empty and non-empty', { key = 'value' }, '<<key>>, <<item>>', 'nil' }, -- should be 'key, '?
 	{ 'Non-empty item, constant format for item', { key = 'value' }, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, constant format for item', {}, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, simple format for item', {}, '"key" is "<<key>>"', 'nil' },
 	{ 'nil, simple format for item', nil, '"key" is "<<key>>"', 'nil' },
 	{ '{}, simple format for item, fallback', {}, '"key" is "<<key|<<>>|(there is no key)>>"', '"key" is "(there is no key)"' },
+	{ 'Conditional separator: a and b', { a = 'A', b = 'B' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'A: B' },
+	{ 'Conditional separator: a, no b', { a = 'A' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'A' },
+	{ 'Conditional separator: no a, b', { b = 'B' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'B' },
+	{ 'Conditional separator: no a and no b', {}, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'nil' },
+	-- @todo: short form of conditional separator <<a and b|: >>
+--	{ 'Conditional separator: a and b, short form', { a = 'A', b = 'B' }, '<<a>><<a * b|: >><<b>>', 'A: B' },
+--	{ 'Conditional separator: a, short form', { a = 'A' }, '<<a>><<a * b|: >><<b>>', 'A: B' },	
+	--
 	{ '<<>>, non-empty' , 'Some value', 'Value is "<<>>"', 'Value is "Some value"' },
 	{ '<<>>, nil', nil, 'Value is <<>>', 'nil' },
 	{ '<<>>, non-empty, const format', 'Some value', 'Value is <<|"there is some value">>', 'Value is "there is some value"' },
@@ -37,6 +46,7 @@ local cases = {
 	{ '<<key|format|fallback>>, {}', {}, '<<key|Header <<>> Footer|There is no "key">>', 'There is no "key"' },
 	{ '@ numeric', { { key = 'value' } }, '<<1|<<@>>: key = <<key>>>>', '1: key = value' },
 	{ '<<#>>', { 'One', 'two', 'three' }, '<<#>>', 'Onetwothree' },
+	{ '<<$>>', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,>>>>', 'one, three, two' },	
 	{ '<<#>>, {}', {}, '<<#>>', 'nil' },
 	{ '<<#|format>>', { 'One', 'two', 'three' }, '<<#|<<>>, >>', 'One, two, three, ' },
 	{ '<<1|format>>, 2D', {
@@ -105,6 +115,7 @@ local cases = {
 	{ '= /pcre/', { key1 = 'Value1', clue = 'Value2' }, '<<= /^Value\\d+$/|<<>><<,>>>>', 'Value1, Value2' },
 	{ '/PCRE/ = /pcre/', { key1 = 'Value1', clue = 'Value2' }, '<</^key\\d+$/ = /^Value\\d+$/>>', 'Value1' },
 	{ 'Union all', { set1 = { 'Value10', 'Value11' }, set2 = { 'Value20', 'Value21' } }, '<< ( set1 + set2 ).# |<<>><<,>>>>', 'Value10, Value11, Value20, Value21' },
+	{ 'Cartesian: non-empty * non-empty', { a = { 'Value1', 'Value2' }, b = { 'Item1', 'Item2' } }, '<< a.# * b.# |<<@|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>', '(1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2' },
 	{ 'Separator, default', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,>>>>', '1: Value1, 2: Value2, 3: Value3' },
 	{ 'Separator, explicit', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,|; >>>>', '1: Value1; 2: Value2; 3: Value3' },
 	{ 'Separator, dynamic', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' }, sep = '; ' }, '<<#|<<@>>: <<key>><<,|<<sep>>>>>>', '1: Value1; 2: Value2; 3: Value3' },	

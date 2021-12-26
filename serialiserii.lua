@@ -1,4 +1,11 @@
--- @TODO: mergers.
+-- @TODO: flags.
+-- @TODO: regexes subject to availability.
+-- @TODO: change symbol for pairs (* is taken by cartesian product).
+-- @TODO: <<? :optional macro.
+-- @TODO: <<,>> separator between different neighbours shown only if both are present. Or <<|<<a>>, <<b>>|<<a>>|<<b>>>>?
+--		or pattern matching: constant parameter succeeding, only if selector yields?
+-- @TODO: move <<@>> to formatter?
+
 --[[
 	Table utilities
 --]]
@@ -420,6 +427,28 @@ local function union_all (iterator1, iterator2)
 end
 
 --[[
+	Returns a table iterator that yields items from a cartesian product of two iterators.
+	
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
+--]]
+local function cartesian (iterator1, iterator2)
+	return function (tbl)
+		return wrap (function ()
+			for key1, value1, captures1 in iterator1 (tbl) do
+				for key2, value2, captures2 in iterator2 (tbl) do
+					yield ({ key1, key2 }, { value1, value2 }, merge (captures1, captures2))
+				end
+			end
+		end)
+	end
+end
+
+--[[
 	Implementation of # (ipairs) and * (pairs) selectors.
 	@param function func ipairs or pairs.
 	@return false (not nil) for absent values.
@@ -429,6 +458,7 @@ local function iterator (func)
 		return wrap (function ()
 			local numbered = {}
 			for key, item in func (tbl or {}) do
+				-- @todo: add parent name?
 				yield (key, item)
 			end
 		end)
@@ -471,6 +501,7 @@ end
 	@return table Two formatter functions that accept a table and return a string:
 		{ for the macro body, for the separator }.
 --]]
+-- @TODO: get a named table?
 local function make_formatter (loops, separator)
 	return { chunks2func (unpack (loops)), separator and chunks2func (separator) }
 end
@@ -553,7 +584,7 @@ end
 local open, pipe, close, equals = '<<', '|', '>>', '='
 local parentheses = { '(', ')' }
 local comma, at, underscore = ',', '@', '_'
-local dot, plus = '.', '+'
+local dot, plus, mult = '.', '+', '*'
 
 -- Return the sum of the keys of a table, wrapped in lpeg.P(). Keys are ordered from longest to shortest:
 local function key_sum (tbl)
@@ -605,6 +636,7 @@ end
 local operators = {
 	{ [empty]	= intersect	},
 	{ [dot]		= enter },
+	{ [mult]	= cartesian },
 	{ [plus]	= union_all }
 }
 
@@ -624,7 +656,7 @@ local function priorities (operators, atomic)
 	return operand
 end
 
-local octothorpe, asterisk = P'#', P'*'
+local octothorpe, dollar = P'#', P'$'
 
 local meta = P{V'format' * -1,
 	
@@ -648,7 +680,7 @@ local meta = P{V'format' * -1,
 	ipairs		= octothorpe * Cc (iterator (ipairs)),
 	
 	-- * (pairs() iterator):
-	pairs		= asterisk * Cc (iterator (pairs)),
+	pairs		= dollar * Cc (iterator (pairs)),
 	
 	-- Optional equal sign:
 	equals		= ( equals * Cc (true) + Cc (false) ) * space ^ 0,
