@@ -20,7 +20,13 @@ end
 local cases = {
 	{ '{}, constant format', {}, 'const string', 'const string' },
 	{ 'Non-empty item, no format', { key = 'value' }, '"key" is "<<key>>"', '"key" is "value"' },
-	{ 'Empty and non-empty', { key = 'value' }, '<<key>>, <<item>>', 'nil' }, -- should be 'key, '?
+	{ 'Empty and non-empty', { key = 'value' }, '<<key>>, <<item>>', 'nil' },
+	{ 'Optional empty and non-empty', { key = 'value' }, '<<key>>, <<?item>>', 'value, ' },
+	{ 'At least one; present', { key1 = 'Value1' }, 'Header <<|<<?key1>><<?key2>>>>', 'Header Value1' },
+	{ 'At least one; absent', {}, 'Header <<|<<?key1>><<?key2>>>>', 'nil' },
+	{ 'Conditional constant; present', { key = 'Value' }, '<<!!key|const string>>', 'const string' },
+	{ 'Conditional constant; absent', {}, '<<!!key|const string>>', 'nil' },
+	{ 'Conditional constant; absent; fallback', {}, '<<!!key|const string|fallback>>', 'fallback' },
 	{ 'Non-empty item, constant format for item', { key = 'value' }, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, constant format for item', {}, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, simple format for item', {}, '"key" is "<<key>>"', 'nil' },
@@ -30,10 +36,9 @@ local cases = {
 	{ 'Conditional separator: a, no b', { a = 'A' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'A' },
 	{ 'Conditional separator: no a, b', { b = 'B' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'B' },
 	{ 'Conditional separator: no a and no b', {}, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'nil' },
-	-- @todo: short form of conditional separator <<a and b|: >>
---	{ 'Conditional separator: a and b, short form', { a = 'A', b = 'B' }, '<<a>><<a * b|: >><<b>>', 'A: B' },
---	{ 'Conditional separator: a, short form', { a = 'A' }, '<<a>><<a * b|: >><<b>>', 'A: B' },	
-	--
+	{ 'Conditional separator: a and b, short form', { a = 'A', b = 'B' }, '<<?a>><<!!a * b|: >><<?b>>', 'A: B' },
+	{ 'Conditional separator: a, short form', { a = 'A' }, '<<?a>><<!!a * b|: >><<?b>>', 'A' },
+	{ 'Conditional separator: b, short form', { b = 'B' }, '<<?a>><<!!a * b|: >><<?b>>', 'B' },	
 	{ '<<>>, non-empty' , 'Some value', 'Value is "<<>>"', 'Value is "Some value"' },
 	{ '<<>>, nil', nil, 'Value is <<>>', 'nil' },
 	{ '<<>>, non-empty, const format', 'Some value', 'Value is <<|"there is some value">>', 'Value is "there is some value"' },
@@ -46,7 +51,7 @@ local cases = {
 	{ '<<key|format|fallback>>, {}', {}, '<<key|Header <<>> Footer|There is no "key">>', 'There is no "key"' },
 	{ '@ numeric', { { key = 'value' } }, '<<1|<<@>>: key = <<key>>>>', '1: key = value' },
 	{ '<<#>>', { 'One', 'two', 'three' }, '<<#>>', 'Onetwothree' },
-	{ '<<$>>', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,>>>>', 'one, three, two' },	
+	{ '<<$>>', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,>>>>', 'one, three, two' },
 	{ '<<#>>, {}', {}, '<<#>>', 'nil' },
 	{ '<<#|format>>', { 'One', 'two', 'three' }, '<<#|<<>>, >>', 'One, two, three, ' },
 	{ '<<1|format>>, 2D', {
@@ -99,7 +104,7 @@ local cases = {
 	{ 'Absent re key', { item1 = 'Value' }, '<<re/"key" { [0-9]+ }/>>', 'nil' },
 	{ 'PCRE // key and <<>>', { key1 = 'Value1', key2 = 'Value2' }, '<</^key(?<no>\\d+)$/|<<@>>: <<>>, >>', 'key1: Value1, key2: Value2, ' },
 	{ "lua'pattern'", { key1 = 'Value' }, "<<lua'key%d+'>>", 'Value' },	
-	{ "lua/pattern/", { key1 = 'Value' }, "<<lua/key%d+/>>", 'Value' },	
+	{ "lua/pattern/", { key1 = 'Value' }, "<<lua/key%d+/>>", 'Value' },
 	{ 'Nested tables', { key = { item = 'Value' } }, '<<key.item>>', 'Value' },
 	{ 'Nested tables, regexes', { key = { item = 'Value' } }, '<</^key$/./^item$/>>', 'Value' },
 	{ 'Nested tables, outer absent', { key = { item = 'Value' } }, '<<item.item>>', 'nil' },
