@@ -1,5 +1,11 @@
--- @TODO: flags.
--- @TODO: regexes subject to availability.
+-- @TODO: i and some other flags for lua and re.
+-- @TODO: set/get config.
+
+--[[
+	Connect string library or alternatives
+--]]
+local string = mw and mw.ustring or string
+local rep, find, sub, gsub = string.rep, string.find, string.sub, string.gsub
 
 --[[
 	Table utilities
@@ -7,7 +13,6 @@
 
 local concat, sort = table.concat, table.sort
 
-local rep = string.rep
 local function dump (var)
 	local shown = {}
 	local function helper (var, indent)
@@ -159,7 +164,6 @@ end
 --]]
 local coroutine = require 'coroutine'
 local wrap, yield = coroutine.wrap, coroutine.yield
-local sub = string.sub
 
 --[[
 	Make a string iterator from a matcher.
@@ -201,23 +205,55 @@ local function exactly (value)
 	end), value
 end
 
--- Perl compatible regular expressions:
-local new_pcre = require 'rex_pcre'.new
 --[[
-	Make a comparator function from a Perl-compatible regular expression.
-	
-	@param string expr Perl-compatible regular expression.
-	@return function A comparator function accepting a string and an offset
-		and returning an offset and end position of the match and a table of captures.
+	Extract a flag from a string of flags.
+	@param string flags Flags.
+	@param string flag Flag to search.
+	@return bool True, if flag is present in flags.
+	@return string Flags with the flag removed.
 --]]
-local function pcre (expr)
-	local valid, compiled = pcall (new_pcre, expr)
-	if not valid then
-		return error_msg ('Perl-compatible regular expression ' .. expr .. ' does not compile')
+local function cut_flag (flags, flag)
+	if not flags or flags == '' then
+		return flags
 	end
-	return string_iterator (function (str, offset)
-		return compiled:tfind (str, offset)
-	end)
+	local found = false
+	local _pos = find (flags, flag, 1, true)
+	if _pos then
+		found = true
+		flags = gsub (flags, flag, '')
+	end
+	return found, flags
+end
+
+local underscore, fillers = '_', '[-_%s]'
+
+--[[
+	Returns a factory of comparator functions accepting a regular expression.
+	
+	@param string flavour Type of regex: gnu, onig, posix, tre.
+	@return function (string expr, string flags) -> function ( (string, offset) -> (offset, end, {captures}) )
+		or nil, if the library is not available.
+--]]
+local function regex (flavour)
+	local lib = require ('rex_' .. flavour)
+	if not lib then
+		return nil
+	end
+	local new_regex = lib.new
+	return function (expr, flags)
+		local condense, flags = cut_flag (flags, underscore)
+		local valid, compiled = pcall (new_regex, expr, flags)
+		if not valid then
+			return error_msg (
+				flavour .. ' regular expression "' .. expr
+			 .. '" with flags "' .. (flags or '') .. '" does not compile'
+			)
+		end
+		return string_iterator (function (str, offset)
+			local str = condense and gsub (str, fillers, '') or str
+			return compiled:tfind (str, offset)
+		end)
+	end
 end
 
 -- LPeg's re module:
@@ -228,16 +264,19 @@ local new_re = require 'lualibs/re'.compile
 	Make a comparator function from an LPEG Re selector.
 	
 	@param string expr LPEG Re selector.
+	@param string flags A string of flags.
 	@return function A comparator function accepting a string and an offset
 		and returning an offset and end position of the match and a table of captures.
 --]]
-local function re (expr)
+local function re (expr, flags)
+	local condense, flags = cut_flag (flags, underscore)
 	local valid, compiled = pcall (new_re, expr)
 	if not valid then
 		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile')
 	end
 	compiled = Cp() * Ct (compiled) * Cp()
 	return string_iterator (function (str, offset)
+		local str = condense and gsub (str, fillers, '') or str
 		local start, matches, finish = compiled:match (str, offset)
 		local captures
 		if matches and type (matches [2]) == 'number' then
@@ -252,13 +291,15 @@ end
 --[[
 	Generates Lua pattern iterator.
 	@param string expr Lua regular expression.
+	@param string flags A string of flags.	
 	@return function A comparator function accepting a string and an offset
 		and returning an offset and end position of the match and a table of captures.
 --]]
 -- @todo: improve.
-local find = (mw and mw.ustring or string).find
-local function lua_pattern (expr)
+local function lua_pattern (expr, flags)
+	local condense, flags = cut_flag (flags, underscore)	
 	return string_iterator (function (str, offset)
+		local str = condense and gsub (str, fillers, '') or str			
 		return find (str, expr, offset)
 	end)
 end
@@ -468,8 +509,8 @@ end
 --]]
 
 		
-local empty, necessary, conditional, optional = '', '!', '!!', '?'
-local comma, at, underscore = ',', '@', '_'
+local empty, conditional, optional = '', '!', '?'
+local comma, at = ',', '@'
 
 --[[
 	Returns a formatter function made from chunks (strings or macros).
@@ -485,7 +526,7 @@ local function chunks2func (chunks)
 				local macro, role = unpack (chunk)
 				-- Run macro:
 				local expanded = macro (tbl)
-				if expanded == nil and role == necessary then
+				if expanded == nil and role == empty then
 					-- Propagate emptyness up:
 					return nil
 				else
@@ -529,7 +570,6 @@ end
 
 -- Default formats for macro roles:
 local defaults = {
-	[necessary]		= { plain },
 	[conditional]	= { plain },
 	[optional]		= { plain },
 	[comma] 		= make_formatter ', ',
@@ -542,7 +582,7 @@ local defaults = {
 	@param function selector Function that accepts a table and
 		returns an iterator yielding key, value, match, captures.
 	@param function ... Formatter functions.
-	@return table { Function implementing the macro, Macro's role: necessary, optional, separator or key }.
+	@return table { Function implementing the macro, Macro's role: empty, optional, separator or key }.
 --]]
 local function make_macro (role, selector, ...)
 	local formats = {...}
@@ -630,25 +670,36 @@ local quotes = S[['"]]
 -- Rule for regular expression delimiter:
 local regex_delim = any - alnum - underscore - space - escape - quotes - pipe - parentheses [1] - parentheses[2] - dot - plus - at
 
+-- Flags for regular expressions:
+local flag = S'AiDsxXmUu' + underscore
+
 -- '', "", re'', re"", pcre'', pcre"", lua'', lua"", //, re//, pcre//, lua//:
 local selectors = {
 	[quotes] = {
 		re		= re,
-		pcre	= pcre,
 		lua		= lua_pattern,
+		gnu	 	= regex 'gnu',
+		onig	= regex 'onig',
+		posix	= regex 'posix',
+		pcre	= regex 'pcre',
+		tre 	= regex 'tre',
 		['']	= exactly
 	},
 	[regex_delim] = {
 		re		= re,
-		pcre	= pcre,
 		lua		= lua_pattern,
-		['']	= pcre
+		gnu	 	= regex 'gnu',
+		onig	= regex 'onig',
+		posix	= regex 'posix',
+		pcre	= regex 'pcre',
+		tre 	= regex 'tre',
+		['']	= regex 'pcre'
 	}
 }
 local quoted_selectors = never
 for delimiter, prefixes in pairs (selectors) do
 	for prefix, selector in pairs (prefixes) do
-		quoted_selectors = quoted_selectors + prefix * quoted (delimiter) / selector
+		quoted_selectors = quoted_selectors + prefix * quoted (delimiter) * C ( flag ^ 0 ) / selector
 	end
 end
 
@@ -687,31 +738,32 @@ local meta = P{V'format' * -1,
 	format		= ( V'macro' + V'literal' ) ^ 0 / make_formatter,
 
 	-- << selector |format|fallback|format|...|last fallback format>>
-	-- Or move choosing default format to make_macro.
 	macro		= P(open) * V'role' * space ^ 0 * V'selector'
 				* ( pipe * V'format' ) ^ 0 * close / make_macro,
 	
-	-- Optional macro role prefix:
-	role		= C ( P (conditional) + P (necessary) + P (optional) + P (comma) ) + Cc (necessary),
+	-- Optional macro role prefix (! for conditional; ? for optional; , for separator:
+	role		= C ( P (conditional) + P (optional) + P (comma) + P (empty) ),
 
 	-- Literal for the right half (formats) of <<|>>:
 	literal		= C ( any_except (open, pipe, close) ^ 1 ),
 		
+	-- Complex table selector (operations space for intersect, . for nesting, * for cartesian product, + for union:
 	selector	= priorities (operators, V'simple') + Cc ( self ),
 	
-	-- Possible table selectors for the left half of <<|>>:
-	simple		= parentheses [1] * V'selector' * parentheses [2] + V'ipairs' + V'pairs' + V'quoted' + V'func' + V'unquoted' + V'dynamic',
+	-- Atomic table selectors for the left half of <<|>>:
+	simple		= parentheses [1] * V'selector' * parentheses [2]
+				+ V'ipairs' + V'pairs' + V'quoted' + V'func' + V'unquoted' + V'dynamic',
 	
 	-- # (ipairs() iterator):
 	ipairs		= octothorpe * Cc (iterator (ipairs)),
 	
-	-- * (pairs() iterator):
+	-- $ (pairs() iterator):
 	pairs		= dollar * Cc (iterator (pairs)),
 	
-	-- Optional equal sign:
+	-- Optional equal sign, for selectors, filtering values:
 	equals		= ( equals * Cc (true) + Cc (false) ) * space ^ 0,
 	
-	-- [=] 'key'|"key"|/pcre/|pcre''|pcre""|pcre//|re''|re""|re//|lua''|lua""|lua//:
+	-- [=] 'key' | "key" | /pcre/ | pcre'' | pcre"" | pcre// | re'' | re"" | re// | lua'' | lua"" | lua//:
 	quoted		= V'equals' * quoted_selectors / table_iterator,
 	
 	-- function ():
@@ -734,7 +786,7 @@ local meta = P{V'format' * -1,
 		end
 	end,
 	
-	-- A word with no spaces but with <<>> tags:
+	-- A word with no spaces or tags:
 	word		= C( any_except (open, pipe, close, equals, quotes, regex_delim, parentheses [1], parentheses [2], dot, plus, comma, space) ^ 1 ),
 }
 
