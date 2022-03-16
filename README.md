@@ -158,13 +158,13 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | /PCRE/ = value | `{ 'key1' = 'Value1', 'clue' = 'Value2' }` | `<</^key\d+$/ = Value1>>` | Value1 |
 | = /pcre/ | `{ 'key1' = 'Value1', 'clue' = 'Value2' }` | `<<= /^Value\d+$/\|<<>><<,>>>>` | Value1, Value2 |
 | /PCRE/ = /pcre/ | `{ 'key1' = 'Value1', 'clue' = 'Value2' }` | `<</^key\d+$/ = /^Value\d+$/>>` | Value1 |
-| Union all | `{ 'set2' = { 'Value20', 'Value21' }, 'set1' = { 'Value10', 'Value11' } }` | `<< ( set1 + set2 ).# |<<>><<,>>>>` | Value10, Value11, Value20, Value21 |
+| Union all | `{ 'set2' = { 'Value20', 'Value21' }, 'set1' = { 'Value10', 'Value11' } }` | `<< ( set1 + set2 ).# \|<<>><<,>>>>` | Value10, Value11, Value20, Value21 |
 | Cartesian: non-empty * non-empty | `{ 'a' = { 'Value1', 'Value2' }, 'b' = { 'Item1', 'Item2' } }` | `<< a.# * b.# \|<<@\|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>` | (1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2 |
 | Separator, default | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
 | Separator, explicit | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
-| Separator, dynamic | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' }, 'sep' = '; ' }` | `<<#\|<<@>>: <<key>><<,|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
+| Separator, dynamic | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' }, 'sep' = '; ' }` | `<<#\|<<@>>: <<key>><<,\|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
 | Separator, header and footer | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
-| Separator, fallback | `{ }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer|Fallback>>` | Fallback |
+| Separator, fallback | `{ }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
 
 # Credits
 FormatterII is written by Alexander Mashin.
