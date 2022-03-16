@@ -1,7 +1,33 @@
 local concat = table.concat
 
-local serialise = require'serialiserii'.serialise
-local wrap, dump = require'serialiserii'.wrap, require'serialiserii'.dump
+local serialise = require 'FormatterII'.format
+local string = require 'FormatterII'.config.string
+
+--[[
+Dumping utility for debugging.
+@param mixed var Variable to dump.
+@param bool inline Inline mode.
+@return string Serialise human-readable variable.
+--]]
+local function dump (var, inline)
+	local rep = string.rep
+	local shown = {}
+	local function helper (var, indent, inline)
+		if type (var) == 'string' then
+			return "'" .. var .. "'"
+		elseif type (var) ~= 'table' or shown [var] then
+			return tostring (var)
+		else
+			shown [var] = true
+			local serialised = {}
+			for key, value in pairs (var) do
+				serialised [#serialised + 1] = (inline and '' or '\n' .. rep ('\t', indent + 1)) .. helper (key, indent + 1, inline) .. ' = ' .. helper (value, indent + 1, inline)
+			end
+			return (inline and '' or (tostring (var) .. ' ' or 'falsy')) .. '{' .. concat (serialised, inline and ', ' or ',') .. (inline and ' ' or '\n' .. rep ('\t', indent)) .. '}'
+		end
+	end
+	return helper (var, 0, inline)
+end
 
 local function divisible_by (no, tbl)
 	filtered = {}
@@ -51,7 +77,10 @@ local cases = {
 	{ '<<key|format|fallback>>, {}', {}, '<<key|Header <<>> Footer|There is no "key">>', 'There is no "key"' },
 	{ '@ numeric', { { key = 'value' } }, '<<1|<<@>>: key = <<key>>>>', '1: key = value' },
 	{ '<<#>>', { 'One', 'two', 'three' }, '<<#>>', 'Onetwothree' },
-	{ '<<$>>', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,>>>>', 'one, three, two' },
+	{ '<<#>>, default separator', { 'One', 'two', 'three' }, '<<#|<<>><<,>>>>', 'One, two, three' },
+	{ '<<#>>, custom separator', { 'One', 'two', 'three' }, '<<#|<<>><<,|; >>>>', 'One; two; three' },	
+	{ '<<$>>, default separator', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,>>>>', 'one, three, two' },
+	{ '<<$>>, custom separator', { key1 = 'one', key2 = 'two', key3 = 'three' }, '<<$|<<>><<,|; >>>>', 'one; three; two' },	
 	{ '<<#>>, {}', {}, '<<#>>', 'nil' },
 	{ '<<#|format>>', { 'One', 'two', 'three' }, '<<#|<<>>, >>', 'One, two, three, ' },
 	{ '<<1|format>>, 2D', {
@@ -68,6 +97,16 @@ local cases = {
 		},
 		'<<#|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>',
 		'Numeral: one, ordinal: first, Numeral: two, ordinal: second, Numeral: three, ordinal: third, '
+	},
+		{
+		'<<#|format>>, 2D, custom separator',
+		{
+			{ numeral = 'one', ordinal = 'first' },
+			{ numeral = 'two', ordinal = 'second' },
+			{ numeral = 'three', ordinal = 'third' }
+		},
+		'<<#|Numeral: <<numeral>>, ordinal: <<ordinal>><<,|; >>>>',
+		'Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third'
 	},
 	{ 'numeric key', { { key = 'value' } }, '<<1|some table>>', 'some table' },
 	{ '@ numeric', { { key = 'value' } }, '<<1|<<@>>>>', '1' },
@@ -105,13 +144,17 @@ local cases = {
 	{ 'Absent PCRE key', { item1 = 'Value' }, '<</^key(?<no>\\d+)$/>>', 'nil' },
 	{ 'Broken PCRE', { item1 = 'Value' }, '<</^key(?<no>\\d+$/>>', 'pcre regular expression "^key(?<no>\\d+$" with flags "" does not compile' },
 	{ 'Re key, re//', { key1 = 'Value' }, '<<re/"key" { [0-9]+ }/>>', 'Value' },
-	{ [[Re key, re'']], { key1 = 'Value' }, [[<<re'"key" { [0-9]+ }'>>]], 'Value' },	
+	{ [[Re key, re'']], { key1 = 'Value' }, [[<<re'"key" { [0-9]+ }'>>]], 'Value' },
+	{ [[Re key, re'', case-insensitive]], { Key1 = 'Value' }, [[<<re'"key" { [0-9]+ }'i>>]], 'Value' },
+	{ [[Absent re key, re'', case-sensitive]], { Key1 = 'Value' }, [[<<re'"key" { [0-9]+ }'>>]], 'nil' },	
 	{ 'Broken re', { key1 = 'Value' }, '<<re/"key" {: [0-9]+ }/>>', 'LPEG Re selector "key" {: [0-9]+ } does not compile' },
 	{ 'Re key, named capture', { key1 = 'Value' }, '<<re/"key" {:no: [0-9]+ :}/|<<no>>: <<>>>>', '1: Value' },
 	{ 'Absent re key', { item1 = 'Value' }, '<<re/"key" { [0-9]+ }/>>', 'nil' },
 	{ 'PCRE // key and <<>>', { key1 = 'Value1', key2 = 'Value2' }, '<</^key(?<no>\\d+)$/|<<@>>: <<>>, >>', 'key1: Value1, key2: Value2, ' },
-	{ "lua'pattern'", { key1 = 'Value' }, "<<lua'key%d+'>>", 'Value' },	
+	{ "lua'pattern'", { key1 = 'Value' }, "<<lua'key%d+'>>", 'Value' },
 	{ "lua/pattern/", { key1 = 'Value' }, "<<lua/key%d+/>>", 'Value' },
+	{ "lua'pattern', case-insensitive", { Key1 = 'Value' }, "<<lua'key%d+'i>>", 'Value' },
+	{ "Absent lua'pattern', case-sensitive", { Key1 = 'Value' }, "<<lua'key%d+'>>", 'nil' },	
 	{ 'Nested tables', { key = { item = 'Value' } }, '<<key.item>>', 'Value' },
 	{ 'Nested tables, regexes', { key = { item = 'Value' } }, '<</^key$/./^item$/>>', 'Value' },
 	{ 'Nested tables, outer absent', { key = { item = 'Value' } }, '<<item.item>>', 'nil' },
@@ -139,7 +182,8 @@ local cases = {
 	},
 	{ 'Separator, fallback', {}, '<<|Header <<#|<<@>>: <<key>><<,>>>> Footer|Fallback>>', 'Fallback' },
 }
-local tested = { 'Status\tDescription\tFormat\tExpected\tActual' }
+local tested
+tested = { '', 'Status\tDescription\tFormat\tExpected\tActual' }
 local succeeded, failed = 0, 0
 for _, case in ipairs (cases) do
 	local desc, tbl, format, expected = case[1], case[2], case[3], case[4]
@@ -152,10 +196,7 @@ for _, case in ipairs (cases) do
 		status = 'FAILURE'
 		failed = failed + 1
 	end
-	tested [#tested +1] = status .. '\t' .. desc .. '\t' .. format .. '\t' .. expected .. '\t' .. actual
+	tested [#tested + 1] = status .. '\t' .. desc .. '\t' .. format .. '\t' .. expected .. '\t' .. actual
 end
-print ('Succeeded: ' .. tostring (succeeded) .. ', failed: ' .. tostring (failed))
+tested [1] = 'Succeeded: ' .. tostring (succeeded) .. ', failed: ' .. tostring (failed)
 print (concat (tested, '\n'))
-
-print '----------------'
-print (dump (wrap ({ { key = 'Value' } }, 'top') [1] ['@']))
