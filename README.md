@@ -66,8 +66,6 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 ### Examples
 | Description | Formatted value | Format string | Result |
 | --- | --- | --- | --- |
-| Description | Formatted value | Format string | Result |
-| --- | --- | --- | --- |
 | {}, constant format | `{ }` | `const string` | const string |
 | Non-empty item, no format | `{ 'key' = 'value' }` | `"key" is "<<key>>"` | "key" is "value" |
 | Empty and non-empty | `{ 'key' = 'value' }` | `<<key>>, <<item>>` | nil |
@@ -167,4 +165,4 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | Separator, fallback | `{ }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
 
 # Credits
-FormatterII is written by Alexander Mashin.
+*FormatterII* is written by Alexander Mashin.
