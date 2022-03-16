@@ -2,7 +2,7 @@
 
 *Version 0.1*
 
-FormatterII is a Lua table formatting tool.
+*FormatterII* is a Lua table formatting tool.
 
 ## Requirements
 - Lua 5.1, limited support for Lua 5.2, even more limited for Lua 5.3,
@@ -39,7 +39,8 @@ Macro syntax can be:
 A selector can be:
 - simple. `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures:
   - empty, meaning the formatted value itself and not changing the context,
-  - `<<key…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
+  - `<<'key'…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
+  - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
   - `<</regular extression/…>>` or `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Perl-compatible regular expression, if available,
   - `<<gnu/regular extression/…>>` or `<<gnu'regular expression'…>>` — a GNU-compatible regular expression, if available,
   - `<<onig/regular extression/…>>` or `<<onig'regular expression'…>>` — an Oniguruma regular expression, if available,
@@ -94,9 +95,9 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | <<>>, non-empty, nested header and footer | 'Some value' | `Value is (<<\|the value is "<<>>">>)` | Value is (the value is "Some value") |
 | <<>>, non-empty, header and footer | 'Some value' | `Header - <<>> - Footer` | Header - Some value - Footer |
 | <<>>, nil, header and footer | nil | `Header - <<>> - Footer` | nil |
-| <<|>>, nil, header and footer | nil | `<<\|Header <<>> Footer>>` | nil |
-| <<key|format|fallback>>, non-empty | { 'key' = 'Value' } | `<<key\|Header - <<>> - Footer\|There is no "key">>` | Header - Value - Footer |
-| <<key|format|fallback>>, {} | { } | `<<key\|Header <<>> Footer\|There is no "key">>` | There is no "key" |
+| <<\|>>, nil, header and footer | nil | `<<\|Header <<>> Footer>>` | nil |
+| <<key\|format\|fallback>>, non-empty | { 'key' = 'Value' } | `<<key\|Header - <<>> - Footer\|There is no "key">>` | Header - Value - Footer |
+| <<key\|format\|fallback>>, {} | { } | `<<key\|Header <<>> Footer\|There is no "key">>` | There is no "key" |
 | @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>: key = <<key>>>>` | 1: key = value |
 | <<#>> | `{ 'One', 'two', 'three' }` | `<<#>>` | Onetwothree |
 | <<#>>, default separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,>>>>` | One, two, three |
