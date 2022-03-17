@@ -1,25 +1,25 @@
 -- @TODO: order of pairs() in Lua 5.2+.
 local p = {
 	config = {
-		string		= string,
-		condense	= '_',
-		fillers		= '[-_%s]',
-		conditional	= '!',
-		optional	= '?',
-		separator	= ',',
-		key			= '@',
-		escape		= '\\',
-		open		= '<<',
-		pipe		= '|',
-		close		= '>>',
-		operators	= {
-			enter		= '.',
-			cartesian	= '*',
-			union		= '+',
-			first		= ','
+		string		= string,	-- string library to use.
+		condense	= '_',		-- "condense" (ignore whitespaces, hyphens and underscores) flag.
+		fillers		= '[-_%s]',	-- characters to ignore when the condense flag is used.
+		conditional	= '!',		-- conditional macro flag.
+		optional	= '?',		-- optional macro flag.
+		separator	= ',',		-- separator macro flag. 
+		key			= '@',		-- key selector.
+		escape		= '\\',		-- escape character.
+		open		= '<<',		-- macro start.
+		pipe		= '|',		-- separator between selector and format string, or between format string and fallback format string.
+		close		= '>>',		-- macro end.
+		operators	= {			-- selector arithmetics.
+			enter		= '.',	-- enter field (change context).
+			cartesian	= '*',	-- cartesian product.
+			union		= '+',	-- union of selectors.
+			first		= ','	-- ordered choice of selectors.
 		},
-		ipairs		= '#',
-		pairs		= '$'
+		ipairs		= '#',		-- ipairs() selector.
+		pairs		= '$'		-- pairs() selector.
 	}
 }
 

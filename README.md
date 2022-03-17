@@ -56,47 +56,79 @@ A selector can be:
     - `<<#…>>` for `ipairs()`,
     - `<<$…>>` for `pairs()`;
   - function: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value and `param1`, …, `paramn`, and producing the returned value of the function;
-- composite:
+- composite, ordered be priority, from highest to lowest (order of composition can be changed by parentheses):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
   - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
-  - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`.
+  - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
+  - `<<selector1 , selector2…>>` — values returned by `selector1`, if any; otherwise values of `selector2`.
 
 If a selector (except iterating ones) is preceded with an equal sign, it is applyied to table values, not keys. This makes the folloging syntax possible: `<<key selector = value selector…>>`.
+
+### Configuration
+`formatter.config` contains a table of library configuration variables, mainly describing format string syntax.
+
+Default value:
+
+```lua
+formatter.config = {
+	string		= string,	-- string library to use.
+	condense	= '_',		-- "condense" (ignore whitespaces, hyphens and underscores) flag.
+	fillers		= '[-_%s]',	-- characters to ignore when the condense flag is used.
+	conditional	= '!',		-- conditional macro flag.
+	optional	= '?',		-- optional macro flag.
+	separator	= ',',		-- separator macro flag. 
+	key			= '@',		-- key selector.
+	escape		= '\\',		-- escape character.
+	open		= '<<',		-- macro start.
+	pipe		= '|',		-- separator between selector and format string, or between format string and fallback format string.
+	close		= '>>',		-- macro end.
+	operators	= {			-- selector arithmetics.
+		enter		= '.',	-- enter field (change context).
+		cartesian	= '*',	-- cartesian product.
+		union		= '+',	-- union of selectors.
+		first		= ','	-- ordered choice of selectors.
+	},
+	ipairs		= '#',		-- ipairs() selector.
+	pairs		= '$'		-- pairs() selector.
+}
+```
+
+After changing configuration, call `formatter.initialise()`.
 
 ### Examples
 | Description | Formatted value | Format string | Result |
 | --- | --- | --- | --- |
-| {}, constant format | `{ }` | `const string` | const string |
+| {}, constant format | `{}` | `const string` | const string |
 | Non-empty item, no format | `{ 'key' = 'value' }` | `"key" is "<<key>>"` | "key" is "value" |
 | Empty and non-empty | `{ 'key' = 'value' }` | `<<key>>, <<item>>` | nil |
 | Optional empty and non-empty | `{ 'key' = 'value' }` | `<<key>>, <<?item>>` | value,  |
 | At least one; present | `{ 'key1' = 'Value1' }` | `Header <<|<<?key1>><<?key2>>>>` | Header Value1 |
-| At least one; absent | `{ }` | `Header <<|<<?key1>><<?key2>>>>` | nil |
+| At least one; absent | ` }` | `Header <<|<<?key1>><<?key2>>>>` | nil |
 | Conditional constant; present | `{ 'key' = 'Value' }` | `<<!key\|const string>>` | const string |
-| Conditional constant; absent | `{ }` | `<<!key\|const string>>` | nil |
-| Conditional constant; absent; fallback | `{ }` | `<<!key\|const string\|fallback>>` | fallback |
+| Conditional constant; absent | `{}` | `<<!key\|const string>>` | nil |
+| Conditional constant; absent; fallback | `{}` | `<<!key\|const string\|fallback>>` | fallback |
 | Non-empty item, constant format for item | `{ 'key' = 'value' }` | `"key" is "<<key\|fallback>>"` | "key" is "fallback" |
-| {}, constant format for item | `{ }` | `"key" is "<<key\|fallback>>"` | "key" is "fallback" |
-| {}, simple format for item | `{ }` | `"key" is "<<key>>"` | nil |
-| nil, simple format for item | nil | `"key" is "<<key>>"` | nil |
-| {}, simple format for item, fallback | `{ }` | `"key" is "<<key\|<<>>\|(there is no key)>>"` | "key" is "(there is no key)" |
+| {}, constant format for item | `{}` | `"key" is "<<key\|fallback>>"` | "key" is "fallback" |
+| {}, simple format for item | `{}` | `"key" is "<<key>>"` | nil |
+| nil, simple format for item | `nil` | `"key" is "<<key>>"` | nil |
+| {}, simple format for item, fallback | `{}` | `"key" is "<<key\|<<>>\|(there is no key)>>"` | "key" is "(there is no key)" |
 | Conditional separator: a and b | `{ 'a' = 'A', 'b' = 'B' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | A: B |
 | Conditional separator: a, no b | `{ 'a' = 'A' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | A |
 | Conditional separator: no a, b | `{ 'b' = 'B' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | B |
-| Conditional separator: no a and no b | `{ }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | nil |
+| Conditional separator: no a and no b | `{}` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | nil |
 | Conditional separator: a and b, short form | `{ 'a' = 'A', 'b' = 'B' }` | `<<?a>><<!a * b\|: >><<?b>>` | A: B |
 | Conditional separator: a, short form | `{ 'a' = 'A' }` | `<<?a>><<!a * b\|: >><<?b>>` | A |
 | Conditional separator: b, short form | `{ 'b' = 'B' }` | `<<?a>><<!a * b\|: >><<?b>>` | B |
-| <<>>, non-empty | 'Some value' | `Value is "<<>>"` | Value is "Some value" |
-| <<>>, nil | nil | `Value is <<>>` | nil |
-| <<>>, non-empty, const format | 'Some value' | `Value is <<\|"there is some value">>` | Value is "there is some value" |
-| <<>>, non-empty, header and footer in macro | 'Some value' | `<<\|the value is "<<>>">>` | the value is "Some value" |
-| <<>>, non-empty, nested header and footer | 'Some value' | `Value is (<<\|the value is "<<>>">>)` | Value is (the value is "Some value") |
-| <<>>, non-empty, header and footer | 'Some value' | `Header - <<>> - Footer` | Header - Some value - Footer |
+| <<>>, non-empty | `'Some value'` | `Value is "<<>>"` | Value is "Some value" |
+| <<>>, nil | `nil` | `Value is <<>>` | nil |
+| <<>>, non-empty, const format | `'Some value'` | `Value is <<\|"there is some value">>` | Value is "there is some value" |
+| <<>>, non-empty, header and footer in macro | `'Some value'` | `<<\|the value is "<<>>">>` | the value is "Some value" |
+| <<>>, non-empty, nested header and footer | `'Some value'` | `Value is (<<\|the value is "<<>>">>)` | Value is (the value is "Some value") |
+| <<>>, non-empty, header and footer | `'Some value'` | `Header - <<>> - Footer` | Header - Some value - Footer |
 | <<>>, nil, header and footer | nil | `Header - <<>> - Footer` | nil |
 | <<\|>>, nil, header and footer | nil | `<<\|Header <<>> Footer>>` | nil |
-| <<key\|format\|fallback>>, non-empty | { 'key' = 'Value' } | `<<key\|Header - <<>> - Footer\|There is no "key">>` | Header - Value - Footer |
+| <<key\|format\|fallback>>, non-empty | `{ 'key' = 'Value' }` | `<<key\|Header - <<>> - Footer\|There is no "key">>` | Header - Value - Footer |
 | <<key\|format\|fallback>>, {} | { } | `<<key\|Header <<>> Footer\|There is no "key">>` | There is no "key" |
 | @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>: key = <<key>>>>` | 1: key = value |
 | <<#>> | `{ 'One', 'two', 'three' }` | `<<#>>` | Onetwothree |
