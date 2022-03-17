@@ -12,9 +12,12 @@ local p = {
 		open		= '<<',
 		pipe		= '|',
 		close		= '>>',
-		enter		= '.',
-		union		= '+',
-		cartesian	= '*',
+		operators	= {
+			enter		= '.',
+			cartesian	= '*',
+			union		= '+',
+			first		= ','
+		},
 		ipairs		= '#',
 		pairs		= '$'
 	}
@@ -377,7 +380,7 @@ end
 --[[
 Table iterator that yields the table itself.
 
-@param mixe var Iterated variable.
+@param mixeв var Iterated variable.
 @return A function that returns an iterator over a table yielding key, value.
 --]]
 local function self (var)
@@ -465,6 +468,28 @@ local function enter (iterator1, iterator2)
 end
 
 --[[
+Returns a table iterator that yields items from a cartesian product of two iterators.
+	
+@param function iterator1 A function that returns an iterator over a table
+	yielding key, value, captures.
+@param function iterator2 A function that returns an iterator over a table
+	yielding key, value, captures.
+@return function A function that returns an iterator over a table
+	yielding key, value, captures.
+--]]
+local function cartesian (iterator1, iterator2)
+	return function (tbl)
+		return wrap (function ()
+			for key1, value1, captures1 in iterator1 (tbl) do
+				for key2, value2, captures2 in iterator2 (tbl) do
+					yield ({ key1, key2 }, { value1, value2 }, merge (captures1, captures2))
+				end
+			end
+		end)
+	end
+end
+
+--[[
 Returns a table iterator that yields items yielded by the first and then the second iterator.
 	
 @param function iterator1 A function that returns an iterator over a table
@@ -488,7 +513,8 @@ local function union_all (iterator1, iterator2)
 end
 
 --[[
-Returns a table iterator that yields items from a cartesian product of two iterators.
+Returns a table iterator that yields items yielded by the first iterator, if any,
+	and then the second iteratorm if the first yields nothing.
 	
 @param function iterator1 A function that returns an iterator over a table
 	yielding key, value, captures.
@@ -497,12 +523,17 @@ Returns a table iterator that yields items from a cartesian product of two iter
 @return function A function that returns an iterator over a table
 	yielding key, value, captures.
 --]]
-local function cartesian (iterator1, iterator2)
+local function first (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
+			local yielded = false
 			for key1, value1, captures1 in iterator1 (tbl) do
+				yielded = true
+				yield (key1, value1, captures1)
+			end
+			if not yielded then
 				for key2, value2, captures2 in iterator2 (tbl) do
-					yield ({ key1, key2 }, { value1, value2 }, merge (captures1, captures2))
+					yield (key2, value2, captures2)
 				end
 			end
 		end)
@@ -674,6 +705,23 @@ local function quoted (quote)
 end
 
 --[[
+Return the sum of the values of a numbered table, wrapped in lpeg.P().
+
+@param table.
+@return userdata LPEG grammar.
+--]]
+local function sumP (tbl)
+	sort (tbl, function (a, b)
+		return #a > #b
+	end)
+	local sum = never
+	for _, tbl in ipairs (tbl) do
+		sum = sum + P (tbl)
+	end
+	return sum
+end
+
+--[[
 Return the sum of the keys of a table, wrapped in lpeg.P(). Keys are ordered from longest to shortest.
 
 @param table.
@@ -684,14 +732,21 @@ local function key_sum (tbl)
 	for key, _ in pairs (tbl) do
 		keys [#keys + 1] = key
 	end
-	sort (keys, function (a, b)
-		return #a > #b
-	end)
-	local sum = never
-	for _, key in ipairs (keys) do
-		sum = sum + P (key)
+	return sumP (keys)
+end
+
+--[[
+Return the sum of the values of a table, wrapped in lpeg.P(). Values are ordered from longest to shortest.
+
+@param table.
+@return userdata LPEG grammar.
+--]]
+local function value_sum (tbl)
+	local values = {}
+	for _, value in pairs (tbl) do
+		values [#values + 1] = value
 	end
-	return sum
+	return sumP (values)
 end
 
 local equals, parentheses, quotes, comma = '=', { '(', ')' }, S[['"]], ','
@@ -702,8 +757,9 @@ Rule for regular expression delimiter.
 @return userdata LPEG
 --]]
 local function regex_delim ()
-	return any - alnum - space - quotes - parentheses [1] - parentheses[2]
-		- p.config.enter - p.config.union - p.config.cartesian
+	return any
+		- (alnum + space + quotes + parentheses [1] + parentheses[2])
+		- value_sum (p.config.operators)
 		- p.config.condense - p.config.escape - p.config.pipe - p.config.key
 end
 
@@ -768,10 +824,11 @@ local function priorities (atomic)
 	-- Selector 'arithmetics' indexed by priority:
 	-- @todo: move to p.config
 	local operators_by_priority = {
-		{ [empty]				= intersect	},
-		{ [p.config.enter]		= enter },
-		{ [p.config.cartesian]	= cartesian },
-		{ [p.config.union]		= union_all }
+		{ [empty]							= intersect	},
+		{ [p.config.operators.enter]		= enter },
+		{ [p.config.operators.cartesian]	= cartesian },
+		{ [p.config.operators.union]		= union_all },
+		{ [p.config.operators.first]		= first }
 	}
 	local operand = atomic
 	for priority, operators in ipairs (operators_by_priority) do
@@ -830,7 +887,7 @@ local function make_meta_grammar()
 		
 		-- unquoted static iterator for values. Simple and faster than dynamic.
 		unquoted	= V'equals' * ( V'word' / try_tonumber / exactly )
-					* #( P (space) + p.config.enter + p.config.union + p.config.separator + p.config.pipe + p.config.close ) / table_iterator,
+					* #( P (space) + value_sum (p.config.operators) + p.config.separator + p.config.pipe + p.config.close ) / table_iterator,
 		
 		-- Single item selector with dynamic key. Empty selector means the variable itself rather than one of its items.
 		-- Returns false (not nil) for absent value:
@@ -845,7 +902,7 @@ local function make_meta_grammar()
 		-- A word with no spaces or tags:
 		word		= C( any_except (
 			equals, quotes, regex_delim(), parentheses [1], parentheses [2], space,
-			p.config.open, p.config.pipe, p.config.close, p.config.enter, p.config.union, p.config.cartesian, p.config.separator
+			p.config.open, p.config.pipe, p.config.close, value_sum (p.config.operators), p.config.separator
 		) ^ 1 ),
 	}
 end

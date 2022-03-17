@@ -101,7 +101,7 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>: key = <<key>>>>` | 1: key = value |
 | <<#>> | `{ 'One', 'two', 'three' }` | `<<#>>` | Onetwothree |
 | <<#>>, default separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,>>>>` | One, two, three |
-| <<#>>, custom separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,|; >>>>` | One; two; three |
+| <<#>>, custom separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,\|; >>>>` | One; two; three |
 | <<$>>, default separator | `{ 'key1' = 'one', 'key3' = 'three', 'key2' = 'two' }` | `<<$\|<<>><<,>>>>` | one, three, two |
 | <<$>>, custom separator | `{ 'key1' = 'one', 'key3' = 'three', 'key2' = 'two' }` | `<<$\|<<>><<,|; >>>>` | one; three; two |
 | <<#>>, {} | `{ }` | `<<#>>` | nil |
@@ -111,9 +111,9 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | <<#\|format>>, 2D, custom separator | {{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } } | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>><<,\|; >>>>` | Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third |
 | numeric key | `{{ 'key' = 'value' } }` | `<<1\|some table>>` | some table |
 | @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>>>` | 1 |
-| <<#\|format>>, 2D, header, <<@>> | {{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } } | `<<\|One to three: <<#\|<<@>>: Numeral: <<numeral>>, ordinal: <<ordinal>>, >>>>` | One to three: 1: Numeral: one, ordinal: first, 2: Numeral: two, ordinal: second, 3: Numeral: three, ordinal: third,  |
+| <<#\|format>>, 2D, header, <<@>> | `{ { 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<\|One to three: <<#\|<<@>>: Numeral: <<numeral>>, ordinal: <<ordinal>>, >>>>` | One to three: 1: Numeral: one, ordinal: first, 2: Numeral: two, ordinal: second, 3: Numeral: three, ordinal: third,  |
 | <<#.ordinal>> | `{{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<#.ordinal\|<<>>, >>` | first, second, third,  |
-| <<#\|format>>, 2D, header, {} | { } | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>>>` | nil |
+| <<#\|format>>, 2D, header, {} | `{}` | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>>>` | nil |
 | Single-quoted key | `{ 'key' = 'Value' }` | `<<'key'>>` | Value |
 | Double-quoted key | `{ 'key' = 'Value' }` | `<<"key">>` | Value |
 | Single-quoted key with spaces | `{ 'some key' = 'Some value' }` | `<<'some key'>>` | Some value |
@@ -158,6 +158,9 @@ If a selector (except iterating ones) is preceded with an equal sign, it is appl
 | = /pcre/ | `{ 'key1' = 'Value1', 'clue' = 'Value2' }` | `<<= /^Value\d+$/\|<<>><<,>>>>` | Value1, Value2 |
 | /PCRE/ = /pcre/ | `{ 'key1' = 'Value1', 'clue' = 'Value2' }` | `<</^key\d+$/ = /^Value\d+$/>>` | Value1 |
 | Union all | `{ 'set2' = { 'Value20', 'Value21' }, 'set1' = { 'Value10', 'Value11' } }` | `<< ( set1 + set2 ).# \|<<>><<,>>>>` | Value10, Value11, Value20, Value21 |
+| First non-empty: first | `{ key1 = 'Value1' }` | `<< /key\\d+/, /item\\d+/>>` | Value1 |
+| First non-empty: second | `{ key1 = 'Value1' }` | `<< /item\\d+/, /key\\d+/>>` | Value1 |
+| First non-empty: absent | `{ field1 = 'Value1' }` | `<< /item\\d+/, /key\\d+/>>` | nil |
 | Cartesian: non-empty * non-empty | `{ 'a' = { 'Value1', 'Value2' }, 'b' = { 'Item1', 'Item2' } }` | `<< a.# * b.# \|<<@\|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>` | (1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2 |
 | Separator, default | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
 | Separator, explicit | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
