@@ -20,7 +20,8 @@ local p = {
 		},
 		ipairs		= '#',		-- ipairs() selector.
 		pairs		= '$'		-- pairs() selector.
-	}
+	},
+	VERSION	= '0.1'
 }
 
 --[[
@@ -380,7 +381,7 @@ end
 --[[
 Table iterator that yields the table itself.
 
-@param mixeв var Iterated variable.
+@param mixed var Iterated variable.
 @return A function that returns an iterator over a table yielding key, value.
 --]]
 local function self (var)
@@ -676,21 +677,22 @@ end
 	LPEG localisations and utilities
 --]]
 local P, S, V = lpeg.P, lpeg.S, lpeg.V
-local C, Cg, Cb, Cmt, Cf, Cc = lpeg.C, lpeg.Cg, lpeg.Cb, lpeg.Cmt, lpeg.Cf, lpeg.Cc
+local C, Cg, Cb, Cmt, Cf, Cc, Cs = lpeg.C, lpeg.Cg, lpeg.Cb, lpeg.Cmt, lpeg.Cf, lpeg.Cc, lpeg.Cs
 local locale = lpeg.locale()
 local any, never, space, alnum = P(1), P(false), locale.space, locale.alnum
 
 --[[
 	Returns an LPEG rule accepting any symbol except the arguments.
 	@param LPEG rule|string ... LPEG rules to exclude.
-	@return LPEG rule.
+	@return LPEG rule (should be within Cs).
 --]]
 local function any_except (...)
-	local rule, escape = any, P (p.config.escape)
+	local escape = P (p.config.escape)
+	local all_forbidden = escape
 	for _, forbidden in ipairs {...} do
-		rule = escape * forbidden + rule - forbidden
+		all_forbidden = all_forbidden + forbidden
 	end
-	return rule
+	return any - all_forbidden + escape / '' * all_forbidden
 end
 
 --[[
@@ -857,7 +859,7 @@ local function make_meta_grammar()
 		role		= C ( P (p.config.conditional) + P (p.config.optional) + P (p.config.separator) + P (empty) ),
 
 		-- Literal for the right half (formats) of <<|>>:
-		literal		= C ( any_except (p.config.open, p.config.pipe, p.config.close) ^ 1 ),
+		literal		= Cs ( any_except (p.config.open, p.config.pipe, p.config.close) ^ 1 ),
 			
 		-- Complex table selector (operations space for intersect, . for nesting, * for cartesian product, + for union:
 		selector	= priorities (V'simple') + Cc ( self ),
@@ -900,7 +902,7 @@ local function make_meta_grammar()
 		end,
 		
 		-- A word with no spaces or tags:
-		word		= C( any_except (
+		word		= Cs ( any_except (
 			equals, quotes, regex_delim(), parentheses [1], parentheses [2], space,
 			p.config.open, p.config.pipe, p.config.close, value_sum (p.config.operators), p.config.separator
 		) ^ 1 ),

@@ -37,7 +37,7 @@ Macro syntax can be:
 
 ### Selector
 A selector can be:
-- simple. `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures:
+- simple. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures. Below, `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters:
   - empty, meaning the formatted value itself and not changing the context,
   - `<<'key'…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
   - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
@@ -50,7 +50,7 @@ A selector can be:
   - `<<re/regular extression/…>>` or `<<re'regular expression'…>>` — an LPEG [Re](http://www.inf.puc-rio.br/~roberto/lpeg/re.html) "regular expression", with some additional features:
     - `<` — back assertion (`lpeg.B`),
     - `~>` — fold capture (`lpeg.Cf`),
-    - `{`` ``}` — constant capture (`lpeg.Cc`),
+    - `{\` \`}` — constant capture (`lpeg.Cc`),
     - `{# #}` — argument capture (`lpeg.Carg`);
   - iterating:
     - `<<#…>>` for `ipairs()`,
@@ -113,6 +113,7 @@ After changing configuration, call `formatter.initialise()`.
 | {}, simple format for item | `{}` | `"key" is "<<key>>"` | nil |
 | nil, simple format for item | `nil` | `"key" is "<<key>>"` | nil |
 | {}, simple format for item, fallback | `{}` | `"key" is "<<key\|<<>>\|(there is no key)>>"` | "key" is "(there is no key)" |
+| Simple format with escaped special character | `{ key = 'Value' }` | `[[The value is \\|<<key>>\\|]]` | The value is \|Value\| |
 | Conditional separator: a and b | `{ 'a' = 'A', 'b' = 'B' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | A: B |
 | Conditional separator: a, no b | `{ 'a' = 'A' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | A |
 | Conditional separator: no a, b | `{ 'b' = 'B' }` | `<<\|<<a>>: <<b>>\|<<a>>\|<<b>>>>` | B |
@@ -126,23 +127,23 @@ After changing configuration, call `formatter.initialise()`.
 | <<>>, non-empty, header and footer in macro | `'Some value'` | `<<\|the value is "<<>>">>` | the value is "Some value" |
 | <<>>, non-empty, nested header and footer | `'Some value'` | `Value is (<<\|the value is "<<>>">>)` | Value is (the value is "Some value") |
 | <<>>, non-empty, header and footer | `'Some value'` | `Header - <<>> - Footer` | Header - Some value - Footer |
-| <<>>, nil, header and footer | nil | `Header - <<>> - Footer` | nil |
-| <<\|>>, nil, header and footer | nil | `<<\|Header <<>> Footer>>` | nil |
+| <<>>, nil, header and footer | `nil` | `Header - <<>> - Footer` | nil |
+| <<\|>>, nil, header and footer | `nil` | `<<\|Header <<>> Footer>>` | nil |
 | <<key\|format\|fallback>>, non-empty | `{ 'key' = 'Value' }` | `<<key\|Header - <<>> - Footer\|There is no "key">>` | Header - Value - Footer |
-| <<key\|format\|fallback>>, {} | { } | `<<key\|Header <<>> Footer\|There is no "key">>` | There is no "key" |
+| <<key\|format\|fallback>>, {} | `{}` | `<<key\|Header <<>> Footer\|There is no "key">>` | There is no "key" |
 | @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>: key = <<key>>>>` | 1: key = value |
 | <<#>> | `{ 'One', 'two', 'three' }` | `<<#>>` | Onetwothree |
 | <<#>>, default separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,>>>>` | One, two, three |
 | <<#>>, custom separator | `{ 'One', 'two', 'three' }` | `<<#\|<<>><<,\|; >>>>` | One; two; three |
 | <<$>>, default separator | `{ 'key1' = 'one', 'key3' = 'three', 'key2' = 'two' }` | `<<$\|<<>><<,>>>>` | one, three, two |
 | <<$>>, custom separator | `{ 'key1' = 'one', 'key3' = 'three', 'key2' = 'two' }` | `<<$\|<<>><<,|; >>>>` | one; three; two |
-| <<#>>, {} | `{ }` | `<<#>>` | nil |
-| <<#\|format>> | { 'One', 'two', 'three' } | `<<#\|<<>>, >>` | One, two, three,  |
-| <<1\|format>>, 2D | {{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } } | `<<1\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first,  |
-| <<#\|format>>, 2D | {{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } } | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first, Numeral: two, ordinal: second, Numeral: three, ordinal: third,  |
-| <<#\|format>>, 2D, custom separator | {{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } } | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>><<,\|; >>>>` | Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third |
-| numeric key | `{{ 'key' = 'value' } }` | `<<1\|some table>>` | some table |
-| @ numeric | `{{ 'key' = 'value' } }` | `<<1\|<<@>>>>` | 1 |
+| <<#>>, {} | `{ }` | `<<#>>` | `nil` |
+| <<#\|format>> | `{ 'One', 'two', 'three' }` | `<<#\|<<>>, >>` | One, two, three,  |
+| <<1\|format>>, 2D | `{ { 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<1\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first,  |
+| <<#\|format>>, 2D | `{ { 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first, Numeral: two, ordinal: second, Numeral: three, ordinal: third,  |
+| <<#\|format>>, 2D, custom separator | `{ { 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>><<,\|; >>>>` | Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third |
+| numeric key | `{ { 'key' = 'value' } }` | `<<1\|some table>>` | some table |
+| @ numeric | `{ { 'key' = 'value' } }` | `<<1\|<<@>>>>` | 1 |
 | <<#\|format>>, 2D, header, <<@>> | `{ { 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<\|One to three: <<#\|<<@>>: Numeral: <<numeral>>, ordinal: <<ordinal>>, >>>>` | One to three: 1: Numeral: one, ordinal: first, 2: Numeral: two, ordinal: second, 3: Numeral: three, ordinal: third,  |
 | <<#.ordinal>> | `{{ 'numeral' = 'one', 'ordinal' = 'first' }, { 'numeral' = 'two', 'ordinal' = 'second' }, { 'numeral' = 'three', 'ordinal' = 'third' } }` | `<<#.ordinal\|<<>>, >>` | first, second, third,  |
 | <<#\|format>>, 2D, header, {} | `{}` | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>>>` | nil |
@@ -194,11 +195,11 @@ After changing configuration, call `formatter.initialise()`.
 | First non-empty: second | `{ key1 = 'Value1' }` | `<< /item\\d+/, /key\\d+/>>` | Value1 |
 | First non-empty: absent | `{ field1 = 'Value1' }` | `<< /item\\d+/, /key\\d+/>>` | nil |
 | Cartesian: non-empty * non-empty | `{ 'a' = { 'Value1', 'Value2' }, 'b' = { 'Item1', 'Item2' } }` | `<< a.# * b.# \|<<@\|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>` | (1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2 |
-| Separator, default | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
-| Separator, explicit | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
-| Separator, dynamic | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' }, 'sep' = '; ' }` | `<<#\|<<@>>: <<key>><<,\|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
-| Separator, header and footer | `{{ 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
-| Separator, fallback | `{ }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
+| Separator, default | `{ { 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
+| Separator, explicit | `{ { 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
+| Separator, dynamic | `{ { 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' }, 'sep' = '; ' }` | `<<#\|<<@>>: <<key>><<,\|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
+| Separator, header and footer | `{ { 'key' = 'Value1' }, { 'key' = 'Value2' }, { 'key' = 'Value3' } }` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
+| Separator, fallback | `{}` | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
 
 # Credits
 *FormatterII* is written by Alexander Mashin.

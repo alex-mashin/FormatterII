@@ -58,6 +58,7 @@ local cases = {
 	{ '{}, simple format for item', {}, '"key" is "<<key>>"', 'nil' },
 	{ 'nil, simple format for item', nil, '"key" is "<<key>>"', 'nil' },
 	{ '{}, simple format for item, fallback', {}, '"key" is "<<key|<<>>|(there is no key)>>"', '"key" is "(there is no key)"' },
+	{ 'Simple format with escaped special character', { key = 'Value' }, [[The value is \|<<key>>\|]], 'The value is |Value|' },
 	{ 'Conditional separator: a and b', { a = 'A', b = 'B' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'A: B' },
 	{ 'Conditional separator: a, no b', { a = 'A' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'A' },
 	{ 'Conditional separator: no a, b', { b = 'B' }, '<<|<<a>>: <<b>>|<<a>>|<<b>>>>', 'B' },
