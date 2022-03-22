@@ -54,6 +54,8 @@ local cases = {
 	{ 'Conditional constant; absent', {}, '<<!key|const string>>', 'nil' },
 	{ 'Conditional constant; absent; fallback', {}, '<<!key|const string|fallback>>', 'fallback' },
 	{ 'Non-empty item, constant format for item', { key = 'value' }, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
+	{ 'Conditional expression, first option', { key = 'value1' }, '<<!key = value1|yes|no>>', 'yes' },
+	{ 'Conditional expression, second option', { key = 'value2' }, '<<!key = value1|yes|no>>', 'no' },	
 	{ '{}, constant format for item', {}, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, simple format for item', {}, '"key" is "<<key>>"', 'nil' },
 	{ 'nil, simple format for item', nil, '"key" is "<<key>>"', 'nil' },

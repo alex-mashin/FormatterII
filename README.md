@@ -33,7 +33,8 @@ Macro syntax can be:
 - `<<,>>` — the default separator (`p.config.separator = ', '`) will be output, if required,
 - `<<,|; >>` — a custom separator (`; ` in this case) will be output, if required,
 - `<<?selector…>>` (*optional macro*) — if `selector` yields nothing, the macro will not fail, producing an empty string instead, and not causing the enclosing format string to fail,
-- `<<!selector|format string>>` (*conditional macro*) — if `selector` yields nothing, macro will fail if even `format string` is constant and does not fail because of `selector`.
+- `<<!selector|format string>>` (*conditional macro*) — if `selector` yields nothing, macro will fail if even `format string` is constant and does not fail because of `selector`,
+- `<<!selector|output if selector succeeds|output if selector fails>>` (*conditional macro*) — if `selector` yields nothing, macro will output the second format string.
 
 ### Selector
 A selector can be:
@@ -50,7 +51,7 @@ A selector can be:
   - `<<re/regular extression/…>>` or `<<re'regular expression'…>>` — an LPEG [Re](http://www.inf.puc-rio.br/~roberto/lpeg/re.html) "regular expression", with some additional features:
     - `<` — back assertion (`lpeg.B`),
     - `~>` — fold capture (`lpeg.Cf`),
-    - `{\` \`}` — constant capture (`lpeg.Cc`),
+    - ``{` `}`` — constant capture (`lpeg.Cc`),
     - `{# #}` — argument capture (`lpeg.Carg`);
   - iterating:
     - `<<#…>>` for `ipairs()`,
@@ -105,6 +106,8 @@ After changing configuration, call `formatter.initialise()`.
 | Optional empty and non-empty | `{ 'key' = 'value' }` | `<<key>>, <<?item>>` | value,  |
 | At least one; present | `{ 'key1' = 'Value1' }` | `Header <<|<<?key1>><<?key2>>>>` | Header Value1 |
 | At least one; absent | ` }` | `Header <<|<<?key1>><<?key2>>>>` | nil |
+| Conditional expression, first option | `{ key = 'value1' }` | `<<!key = value1\|yes\|no>>` | yes |
+| Conditional expression, second option | `{ key = 'value2' }` | `<<!key = value1\|yes\|no>>` | no |	
 | Conditional constant; present | `{ 'key' = 'Value' }` | `<<!key\|const string>>` | const string |
 | Conditional constant; absent | `{}` | `<<!key\|const string>>` | nil |
 | Conditional constant; absent; fallback | `{}` | `<<!key\|const string\|fallback>>` | fallback |
