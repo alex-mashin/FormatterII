@@ -55,7 +55,7 @@ local cases = {
 	{ 'Conditional constant; absent; fallback', {}, '<<!key|const string|fallback>>', 'fallback' },
 	{ 'Non-empty item, constant format for item', { key = 'value' }, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ 'Conditional expression, first option', { key = 'value1' }, '<<!key = value1|yes|no>>', 'yes' },
-	{ 'Conditional expression, second option', { key = 'value2' }, '<<!key = value1|yes|no>>', 'no' },	
+	{ 'Conditional expression, second option', { key = 'value2' }, '<<!key = value1|yes|no>>', 'no' },
 	{ '{}, constant format for item', {}, '"key" is "<<key|fallback>>"', '"key" is "fallback"' },
 	{ '{}, simple format for item', {}, '"key" is "<<key>>"', 'nil' },
 	{ 'nil, simple format for item', nil, '"key" is "<<key>>"', 'nil' },
@@ -193,7 +193,7 @@ tested = { '', 'Status\tDescription\tFormat\tExpected\tActual' }
 local succeeded, failed = 0, 0
 for _, case in ipairs (cases) do
 	local desc, tbl, format, expected = case[1], case[2], case[3], case[4]
-	local actual = serialise (tbl, format)
+	local actual = serialise (format, tbl) or 'nil'
 	local status
 	if actual == expected then
 		status = 'SUCCESS'

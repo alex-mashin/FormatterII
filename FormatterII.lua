@@ -1,4 +1,7 @@
 -- @TODO: order of pairs() in Lua 5.2+.
+-- @TODO: generate tables.
+-- @TODO: try to replace returned table in make_formatter with multiple values.
+
 local p = {
 	config = {
 		string		= string,	-- string library to use.
@@ -371,6 +374,7 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 			for key, value in pairs (tbl or {}) do
 				local iterated_string = iterate_value and value or key
 				for match, captures in string_iterator (iterated_string) do
+					-- @todo: save match and captures somewhere in tbl (not tbl[key]).
 					yield (key, value, captures)
 				end
 			end
@@ -602,6 +606,7 @@ Returns a table of two formatter functions made from chunks (strings or macros):
 @return table { The formatter function that accepts a table and returns a table with a string for the loop body, the same for the separator }.
 --]]
 -- @TODO: get a named table?
+-- @TODO: try to replace returned table with multiple values.
 local function make_formatter (...)
 	local separator = p.config.separator
 	local chunks, separators = {}, {}
@@ -652,10 +657,12 @@ local function make_macro (role, selector, ...)
 	return { function (tbl)
 		-- Return the first successful (non-nil) format:
 		for i, formatter_pair in ipairs (formats) do
+		-- @todo: or iterate first selector, then formats?
 			local formatter, separator = unpack (formatter_pair)
 			local formatted = {}
 			for key, value, captures in selector (tbl) do
 				local extended_value = captures and wrap_table (merge (type (value) == 'table' and value or {}, captures), key, tbl, value) or value
+				-- @todo: also tables.
 				formatted [#formatted + 1] = formatter (extended_value)
 			end
 			if #formatted == 0 and not (role == conditional and i == 1) then
@@ -666,6 +673,7 @@ local function make_macro (role, selector, ...)
 				end
 			end
 			if #formatted > 0 then
+				-- @todo: also tables.
 				return concat (formatted, separator and separator (tbl) or '')
 			end
 		end
@@ -917,18 +925,47 @@ function p.initialise ()
 end
 
 --[[
-Serialise the table s according to format and p.p.config.
+Return a function serialising it arguments according to format.
 
-@param table table The table to serialise.
 @param string format The format string.
-@return string The formatted table.
+@return function The serialising function.
 --]]
-function p.format (tbl, format)
+function p.formatter (format)
 	if not p.meta then
 		p.initialise ()
 	end
 	local compiled = p.meta:match (format)
-	return compiled and tostring (compiled [1] (wrap_table (tbl))) or format .. ' does not compile'
+	if compiled and type (compiled) == 'table' and type (compiled [1]) == 'function' then
+		local formatter = compiled [1]
+		return function (...)
+			local values, formatted = {...}, {}
+			for i, value in ipairs (values) do
+				-- @todo: different types of format.
+				formatted [i] = tostring (formatter (wrap_table (value)))
+			end
+			return table.unpack (formatted)
+		end
+	else
+		return tostring (format) .. ' does not compile'
+	end
+end
+
+
+--[[
+Serialise arguments according to format.
+
+@param string format The format string.
+@param mixed ... The values to serialise.
+@return string The formatted values.
+--]]
+function p.format (format, ...)
+	local formatter = p.formatter (format)
+	-- Do not simplify to and .. or:
+	if type (formatter) == 'function' then
+		return formatter (...)
+	else
+		return formatter
+	end
 end
 
 return p
