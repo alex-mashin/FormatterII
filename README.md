@@ -101,10 +101,10 @@ After changing configuration, call `formatter.initialise()`.
 ### Examples
 | Description | Format | Result |
 | --- | --- | --- |
-| Constant format |
+| **Constant format** |
 | Present value, constant format | `const string` | const string |
 | Absent value, constant format | `const string` | const string |
-| Plain format |
+| **Plain format** |
 | Present item, plain format | `<<key>>` | value |
 | Present item, plain format, prefix | `"key" is "<<key>>"` | "key" is "value" |
 | Absent item, plain format | `<<key>>` | nil |
@@ -117,8 +117,8 @@ After changing configuration, call `formatter.initialise()`.
 | `<<>>`, present, nested header and footer | `They say <<\|the value is "<<>>">>` | They say the value is "Some value" |
 | `<<>>`, present, header and footer | `Header - <<>> - Footer` | Header - Some value - Footer |
 | `<<>>`, nil, header and footer | `Header - <<>> - Footer` | nil |
-| `<<|>>`, nil, header and footer | `<<\|Header <<>> Footer>>` | nil |
-| Fallbacks |
+| `<<\|>>`, nil, header and footer | `<<\|Header <<>> Footer>>` | nil |
+| **Fallbacks** |
 | Absent value with fallback | `<<key\|<<>>\|fallback>>` | fallback |
 | Absent value with empty fallback | `<<key\|<<>>\|>>` |  |
 | Absent value with fallback, short syntax | `<<?key\|fallback>>` | fallback |
@@ -140,7 +140,7 @@ After changing configuration, call `formatter.initialise()`.
 | At least one; one present; prefix | `<<key1 + key2\|Header <<>>>>` | Header Value1 |
 | At least one; absent; prefix | `<<key1 + key2\|Header <<>>>>` | nil |
 | At least one; two present; prefix | `<<\|Header: <<key1 + key2\|<<>><<,>>>>>>` | Header: Value1, Value2 |
-| Conditional format |
+| **Conditional format** |
 | Conditional constant; present | `<<key\|<<!>>const string>>` | const string |
 | Conditional constant; absent | `<<key\|<<!>>const string>>` | nil |
 | Conditional constant; absent; fallback | `<<key\|<<!>>const string\|fallback>>` | fallback |
@@ -154,7 +154,7 @@ After changing configuration, call `formatter.initialise()`.
 | Conditional separator: a and b, short form | `<<?a>><<a * b\|<<!>>: \|>><<?b>>` | A: B |
 | Conditional separator: a, short form | `<<?a>><<a * b\|<<!>>: \|>><<?b>>` | A |
 | Conditional separator: b, short form | `<<?a>><<a * b\|<<!>>: \|>><<?b>>` | B |
-| Iteration |
+| **Iteration** |
 | `@` numeric | `<<1\|<<@>>: key = <<key>>>>` | 1: key = value |
 | `<<#>>`, no separator | `<<#>>` | Onetwothree |
 | `<<#>>`, default separator | `<<#\|<<>><<,>>>>` | One, two, three |
@@ -162,17 +162,17 @@ After changing configuration, call `formatter.initialise()`.
 | `<<$>>`, default separator | `<<$\|<<>><<,>>>>` | one, three, two |
 | `<<$>>`, custom separator | `<<$\|<<>><<,\|; >>>>` | one; three; two |
 | `<<#>>`, {} | `<<#>>` | nil |
-| `<<#|format>>` | `<<#\|<<>>, >>` | One, two, three,  |
-| `<<1|format>>`, 2D | `<<1\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first,  |
-| `<<#|format>>`, 2D | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first, Numeral: two, ordinal: second, Numeral: three, ordinal: third,  |
-| `<<#|format>>`, 2D, custom separator | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>><<,\|; >>>>` | Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third |
+| `<<#\|format>>` | `<<#\|<<>>, >>` | One, two, three,  |
+| `<<1\|format>>`, 2D | `<<1\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first,  |
+| `<<#\|format>>`, 2D | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>>, >>` | Numeral: one, ordinal: first, Numeral: two, ordinal: second, Numeral: three, ordinal: third,  |
+| `<<#\|format>>`, 2D, custom separator | `<<#\|Numeral: <<numeral>>, ordinal: <<ordinal>><<,\|; >>>>` | Numeral: one, ordinal: first; Numeral: two, ordinal: second; Numeral: three, ordinal: third |
 | numeric key | `<<1\|some table>>` | some table |
 | `@` numeric | `<<1\|<<@>>>>` | 1 |
-| `<<#|format>>`, 2D, header, `<<@>>` | `<<\|One to three: <<#\|<<@>>: Numeral: <<numeral>>, ordinal: <<ordinal>>, >>>>` | One to three: 1: Numeral: one, ordinal: first, 2: Numeral: two, ordinal: second, 3: Numeral: three, ordinal: third,  |
+| `<<#\|format>>`, 2D, header, `<<@>>` | `<<\|One to three: <<#\|<<@>>: Numeral: <<numeral>>, ordinal: <<ordinal>>, >>>>` | One to three: 1: Numeral: one, ordinal: first, 2: Numeral: two, ordinal: second, 3: Numeral: three, ordinal: third,  |
 | `<<#.ordinal>>` | `<<#.ordinal\|<<>>, >>` | first, second, third,  |
-| `<<#|format>>`, 2D, header, `{}` | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>>>` | nil |
-| `<<#|format>>`, 2D, header, `{}`, fallback | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>\|No items>>` | No items |
-| Selectors |
+| `<<#\|format>>`, 2D, header, `{}` | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>>>` | nil |
+| `<<#\|format>>`, 2D, header, `{}`, fallback | `<<\|One to three: <<#\|Numeral: <<numeral>>, cardinal: <<ordinal>>, >>\|No items>>` | No items |
+| **Selectors** |
 | Single-quoted key | `<<'key'>>` | Value |
 | Double-quoted key | `<<"key">>` | Value |
 | Single-quoted key with spaces | `<<'some key'>>` | Some value |
@@ -202,16 +202,16 @@ After changing configuration, call `formatter.initialise()`.
 | lua/pattern/ | `<<lua/key%d+/>>` | Value |
 | lua'pattern', case-insensitive | `<<lua'key%d+'i>>` | Value |
 | Absent lua'pattern', case-sensitive | `<<lua'key%d+'>>` | nil |
-| Nested tables |
+| **Nested tables** |
 | Nested tables | `<<key.item>>` | Value |
 | Nested tables, regexes | `<</^key$/./^item$/>>` | Value |
 | Nested tables, outer absent | `<<item.item>>` | nil |
 | Nested tables, upper level as fallback | `<<key\|<<item>>, <<desc>>>>` | Value, Description |
-| Functions |
+| **Functions** |
 | Function | `<<even().#>>` | 102030 |
 | Function with (parameter) | `<<divisible_by (3).#>>` | 1530 |
 | Function with (<<parameter>>) | `<<divisible_by (<<divider>>).#>>` | 1530 |
-| Composition |
+| **Composition** |
 | Composed selectors | `<</^key/ /\d$/>>` | Value1 |
 | Composed selectors, parentheses not changing the order of operations | `<<(/^key/ /\d$/)>>` | Value1 |
 | Composition of two equal keys | `<<"key" "key">>` | Value |
@@ -224,7 +224,7 @@ After changing configuration, call `formatter.initialise()`.
 | First non-empty: second | `<< /item\d+/, /key\d+/>>` | Value1 |
 | First non-empty: absent | `<< /item\d+/, /key\d+/>>` | nil |
 | Cartesian: non-empty * non-empty | `<< a.# * b.# \|<<@\|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>` | (1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2 |
-| Separators |
+| **Separators** |
 | Separator, default | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
 | Separator, explicit | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
 | Separator, dynamic | `<<#\|<<@>>: <<key>><<,\|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
