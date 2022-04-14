@@ -1,6 +1,6 @@
 -- @TODO: order of pairs() in Lua 5.2+.
 -- @TODO: generate tables.
--- @TODO: try to replace returned table in make_formatter with multiple values.
+-- @TODO: / operation for unique.
 
 local p = {
 	config = {
@@ -9,7 +9,9 @@ local p = {
 		fillers		= '[-_%s]',	-- characters to ignore when the condense flag is used.
 		conditional	= '!',		-- conditional macro flag.
 		optional	= '?',		-- optional macro flag.
-		separator	= ',',		-- separator macro flag. 
+		separator	= ',',		-- separator macro flag.
+		default_separator
+					= ', ',		-- default separator.
 		key			= '@',		-- key selector.
 		escape		= '\\',		-- escape character.
 		open		= '<<',		-- macro start.
@@ -38,6 +40,33 @@ local wrap, yield = coroutine.wrap, coroutine.yield
 local function error_msg (msg)
 	return msg
 end
+
+--[[
+Dumping utility for debugging.
+@param mixed var Variable to dump.
+@param bool inline Inline mode.
+@return string Serialise human-readable variable.
+--]]
+local function dump (var, inline)
+	local rep = string.rep
+	local shown = {}
+	local function helper (var, indent, inline)
+		if type (var) == 'string' then
+			return "'" .. var .. "'"
+		elseif type (var) ~= 'table' or shown [var] then
+			return tostring (var)
+		else
+			shown [var] = true
+			local serialised = {}
+			for key, value in pairs (var) do
+				serialised [#serialised + 1] = (inline and '' or '\n' .. rep ('\t', indent + 1)) .. helper (key, indent + 1, inline) .. ' = ' .. helper (value, indent + 1, inline)
+			end
+			return (inline and '' or (tostring (var) .. ' ' or 'falsy')) .. '{' .. concat (serialised, inline and ', ' or ',') .. (inline and ' ' or '\n' .. rep ('\t', indent)) .. '}'
+		end
+	end
+	return helper (var, 0, inline)
+end
+
 
 --[[
 Redefined pairs and ipairs.
@@ -398,7 +427,7 @@ end
 Converts a function to a table iterator yielding its results.
 	
 @param string name Function index in the table. The function should accept zero or more parameters, then the table.
-@param mixed ... Additional parameters to function.
+@param table ... Additional parameters to function.
 @return A function that returns an iterator over a table
 	yielding key, value, captures.
 --]]
@@ -407,7 +436,8 @@ local function function2table_iterator (name, ...)
 	return function (tbl)
 		local func = tbl [name]
 		local resolved = {}
-		for _, param in ipairs (params) do
+		for _, param_pair in ipairs (params) do
+			local param = param_pair.body
 			resolved [#resolved + 1] = type (param) == 'function' and param (tbl) or param -- can be format or a constant string.
 		end
 		local results = { func and (#resolved > 0 and func (unpack (resolved), tbl) or func (tbl)) or nil } -- cannot be simplified.
@@ -570,115 +600,86 @@ Formatting tables
 local empty = ''
 
 --[[
-Returns a formatter function made from chunks (strings or macros).
-	
-@param string|function ... Strings and macros.
-@return function The formatter function that accepts a table and returns a table with a string for the loop body and a string for the separator.
---]]
-local function chunks2func (chunks)
-	return function (tbl)
-		local expanded_chunks = {}
-		for _, chunk in ipairs (chunks) do
-			-- Do not simplify to ... and ... or ...
-			if type (chunk) == 'table' then
-				local macro, role = unpack (chunk)
-				-- Run macro:
-				local expanded = macro (tbl)
-				if expanded == nil and role == empty then
-					-- Propagate emptyness up:
-					return nil
-				else
-					expanded_chunks [#expanded_chunks + 1] = expanded
-				end
-			else
-				-- Record literal:
-				expanded_chunks [#expanded_chunks + 1] = chunk
-			end
-		end
-		return #expanded_chunks > 0 and concat (expanded_chunks) or nil
-	end
-end	
-
---[[
 Returns a table of two formatter functions made from chunks (strings or macros): for the loop body and for the separator.
 	
-@param string|function ... Strings and macros.
-@return table { The formatter function that accepts a table and returns a table with a string for the loop body, the same for the separator }.
+@param table chunks Strings and macros, optional separator and conditional fields.
+@return { body = function, separator = function } Two formatter functions that accept a table and return a string: for the loop body and for the separator.
 --]]
--- @TODO: get a named table?
--- @TODO: try to replace returned table with multiple values.
-local function make_formatter (...)
-	local separator = p.config.separator
-	local chunks, separators = {}, {}
-	for _, chunk in ipairs {...} do
-		if type (chunk) == 'table' and chunk [2] == separator then
-			separators[#separators + 1] = chunk
-		else
-			chunks [#chunks + 1] = chunk
-		end
+local function make_formatter (chunks)
+	return {
+		body = function (value)
+			-- <<!>> present. Even constant format should fail:
+			if chunks.conditional and not value then
+				return nil
+			end
+			local expanded_chunks = {}
+			-- Loop over literal and macros in a format:
+			for _, chunk in ipairs (chunks) do
+				local expanded
+				-- Do not simplify to and .. or.
+				if type (chunk) == 'function' then
+					expanded = chunk (value)
+				else
+					expanded = chunk
+				end
+				if expanded == nil then
+					-- propagate nil up:
+					return nil
+				end
+				expanded_chunks [#expanded_chunks + 1] = expanded
+			end
+			return #expanded_chunks > 0 and concat (expanded_chunks) or nil
+		end,
+		separator = chunks.separator
+	}
+end
+
+-- The plain formatter for <<key>>:
+local plain = {
+	body = function (value)
+		return value and tostring (value) or nil
+	end,
+	separator = function ()
+		return ''
 	end
-	return { chunks2func (chunks), chunks2func (separators) }
-end
-
---[[
-The trivial and basic formatter; essentially, tostring().
-	
-@param mixed value Value to format.
-@return string|nil Formatted value.
---]]
-local function plain (value)
-	return value and tostring (value) or nil
-end
-
---[[
-Default format for macro role.
-
-@param string role
-@return table  { The formatter function that accepts a table and returns a table with a string for the loop body, the same for the separator }.
---]]
-local function default_format (role)
-	return role == p.config.separator and make_formatter ', ' or { plain }
-end
+}
 
 --[[
 	Creates a macro function from a selector function and several fornat functions.
-	@param string role Macro's role: necessary, optional, conditional, separator or key.
 	@param function selector Function that accepts a table and
 		returns an iterator yielding key, value, match, captures.
 	@param function ... Formatter functions.
-	@return table { Function implementing the macro, Macro's role: empty, optional, separator or key }.
+	@return function Function implementing the macro.
 --]]
-local function make_macro (role, selector, ...)
+local function make_macro (selector, ...)
 	local formats = {...}
-	if #formats == 0 then
-		formats = { default_format (role) }
-	end
-	local conditional = p.config.conditional
-	return { function (tbl)
-		-- Return the first successful (non-nil) format:
-		for i, formatter_pair in ipairs (formats) do
-		-- @todo: or iterate first selector, then formats?
-			local formatter, separator = unpack (formatter_pair)
-			local formatted = {}
+	return function (tbl)
+		-- Loop over <<...||format1||...|formatn>>. Return the first successful (non-nil) format:
+		for _, formatter in ipairs (formats) do
+			local values, separator = {}, ''
+			-- Loop over value yielded by <<selector...>>:
 			for key, value, captures in selector (tbl) do
 				local extended_value = captures and wrap_table (merge (type (value) == 'table' and value or {}, captures), key, tbl, value) or value
-				-- @todo: also tables.
-				formatted [#formatted + 1] = formatter (extended_value)
-			end
-			if #formatted == 0 and not (role == conditional and i == 1) then
-				-- Even nil can be formatted by a constant fallback format:
-				local formatted_nil = formatter ()
-				if formatted_nil then
-					formatted = { formatted_nil }
+				local formatted = formatter.body (extended_value)
+				-- @todo: remove?
+				if formatted == nil then
+					-- this format failed, get the next one:
+					break
 				end
+				values [#values + 1] = formatted
+				-- @TODO: formatter.separator.separator.
+				local separator_formatter = type (formatter.separator) == 'table' and formatter.separator.body or formatter.separator
+				separator = separator_formatter and separator_formatter (extended_value) or ''
 			end
-			if #formatted > 0 then
-				-- @todo: also tables.
-				return concat (formatted, separator and separator (tbl) or '')
+			if #values == 0 then
+				values = { formatter.body (nil) }
+			end
+			if #values > 0 then
+				return concat (values, separator)
 			end
 		end
 		return nil -- all formats have failed.
-	end, role }
+	end
 end
 
 --[[
@@ -855,19 +856,36 @@ Create metagrammar for the formatter string.
 @return userdata LPEG grammar.
 --]]
 local function make_meta_grammar()
-	return P{V'format' * -1,
+	local conf = p.config
+	local open, pipe, close = P (conf.open), P (conf.pipe), P (conf.close)
+	local separator, conditional, optional = P (conf.separator), P (conf.conditional), P (conf.optional)
+	local default_separator = Cc ( function ()
+		return p.config.default_separator
+	end )
+	local empty_formatter = Cc { '' } / make_formatter
+	
+	return P{ V'format' * -1,
 		
-		format		= ( V'macro' + V'literal' ) ^ 0 / make_formatter,
+		format		= Ct ( ( V'separator' + V'conditional' + V'macro' + V'literal' ) ^ 1 + C'' ) / make_formatter,
+		
+		-- <<,>> or <<,|; >>:
+		separator	= open * space ^ 0 * separator * space ^ 0
+					* Cg ( pipe * V'format' + default_separator, 'separator' ) * close,
+		
+		-- <<!>>
+		conditional	= open * conditional * Cg ( Cc (true), 'conditional' ) * close,
 
 		-- << selector |format|fallback|format|...|last fallback format>>
-		macro		= P(p.config.open) * V'role' * space ^ 0 * V'selector'
-					* ( p.config.pipe * V'format' ) ^ 0 * p.config.close / make_macro,
-		
-		-- Optional macro role prefix (! for conditional; ? for optional; , for separator:
-		role		= C ( P (p.config.conditional) + P (p.config.optional) + P (p.config.separator) + P (empty) ),
+		-- @TODO: open and close inside; << >> and <<? >>; later {{{~ }}} and {{{ }}}.
+		macro		= P (open) * space ^ 0 * (
+						-- <<?selector>> for <<selector|<<>>...>>.
+						optional * space ^ 0 * V'selector' * space ^ 0 * Cc (plain) * ( ( pipe * V'format' ) ^ 1 + empty_formatter )
+						-- <<selector...>>
+					  + V'selector' * space ^ 0 * ( ( pipe * V'format' ) ^ 1 + Cc (plain) )	-- no format is plain format.
+					) * close / make_macro,
 
 		-- Literal for the right half (formats) of <<|>>:
-		literal		= Cs ( any_except (p.config.open, p.config.pipe, p.config.close) ^ 1 ),
+		literal		= Cs ( any_except (open, pipe, close) ^ 1 ),
 			
 		-- Complex table selector (operations space for intersect, . for nesting, * for cartesian product, + for union:
 		selector	= priorities (V'simple') + Cc ( self ),
@@ -893,18 +911,18 @@ local function make_meta_grammar()
 					* ( V'parameter' * ( space ^ 0 * comma * V'parameter' ) ^ 0 ) ^ -1
 					* space ^ 0 * parentheses [2] / function2table_iterator,
 
-		parameter	= Ct ( ( V'macro' + V'word' ) ^ 1 ) / chunks2func + quoted'"' + quoted"'",
+		parameter	= Ct ( ( V'macro' + V'word' ) ^ 1 ) / make_formatter + quoted'"' + quoted"'",
 		
 		-- unquoted static iterator for values. Simple and faster than dynamic.
 		unquoted	= V'equals' * ( V'word' / try_tonumber / exactly )
-					* #( P (space) + value_sum (p.config.operators) + p.config.separator + p.config.pipe + p.config.close ) / table_iterator,
+					* #( P (space) + value_sum (p.config.operators) + separator + pipe + close ) / table_iterator,
 		
 		-- Single item selector with dynamic key. Empty selector means the variable itself rather than one of its items.
 		-- Returns false (not nil) for absent value:
-		dynamic		= V'equals' * ( V'macro' + V'word' ) ^ 1 / function (value, ...)
-			local formatter = chunks2func {...}
+		dynamic		= V'equals' * Ct ( ( V'macro' + V'word' ) ^ 1 ) / function (value, chunks)
+			local formatter = make_formatter (chunks)
 			return function (tbl)
-				local filter = try_tonumber (formatter (tbl))
+				local filter = try_tonumber (formatter.body (tbl))
 				return table_iterator (value, exactly (filter)) (tbl)
 			end
 		end,
@@ -912,7 +930,7 @@ local function make_meta_grammar()
 		-- A word with no spaces or tags:
 		word		= Cs ( any_except (
 			equals, quotes, regex_delim(), parentheses [1], parentheses [2], space,
-			p.config.open, p.config.pipe, p.config.close, value_sum (p.config.operators), p.config.separator
+			open, pipe, close, value_sum (p.config.operators), separator
 		) ^ 1 ),
 	}
 end
@@ -935,13 +953,12 @@ function p.formatter (format)
 		p.initialise ()
 	end
 	local compiled = p.meta:match (format)
-	if compiled and type (compiled) == 'table' and type (compiled [1]) == 'function' then
-		local formatter = compiled [1]
+	if compiled and type (compiled) == 'table' then
 		return function (...)
 			local values, formatted = {...}, {}
 			for i, value in ipairs (values) do
 				-- @todo: different types of format.
-				formatted [i] = tostring (formatter (wrap_table (value)))
+				formatted [i] = tostring (compiled.body (wrap_table (value)))
 			end
 			return table.unpack (formatted)
 		end
