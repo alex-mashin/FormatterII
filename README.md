@@ -99,8 +99,8 @@ formatter.config = {
 After changing configuration, call `formatter.initialise()`.
 
 ### Examples
-| Status | Description | Format | Expected |
-| --- | --- | --- | --- |
+| Description | Format | Result |
+| --- | --- | --- |
 | Constant format |
 | Present value, constant format | `const string` | const string |
 | Absent value, constant format | `const string` | const string |

@@ -235,7 +235,7 @@ local tested
 tested = { '', '| Status | Description | Format | Expected | Actual |', '| --- | --- | --- | --- | --- |' }
 local succeeded, failed = 0, 0
 for _, section in ipairs (cases) do
-	tested [#tested + 1] = '| ' .. section.title .. ' |'
+	tested [#tested + 1] = '| **' .. section.title .. '** |'
 	for _, case in ipairs (section) do
 		local desc, tbl, format, expected = case[1], case[2], case[3], case[4]
 		local actual = serialise (format, tbl) or 'nil'
