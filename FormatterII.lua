@@ -24,7 +24,8 @@ local p = {
 			first		= ','	-- ordered choice of selectors.
 		},
 		ipairs		= '#',		-- ipairs() selector.
-		pairs		= '$'		-- pairs() selector.
+		pairs		= '$',		-- pairs() selector.
+		regex		= 'pcre'	-- the default regular expression flavour.
 	},
 	VERSION	= '0.1'
 }
@@ -263,7 +264,7 @@ end
 --[[
 Returns a factory of comparator functions accepting a regular expression.
 	
-@param string flavour Type of regex: gnu, onig, posix, tre.
+@param string flavour Type of regex: pcre, gnu, onig, posix, tre.
 @return function (string expr, string flags) -> function ( (string, offset) -> (offset, end, {captures}) )
 	or nil, if the library is not available.
 --]]
@@ -809,7 +810,7 @@ local function quoted_selector ()
 			posix	= regex 'posix',
 			pcre	= regex 'pcre',
 			tre 	= regex 'tre',
-			['']	= regex 'pcre'
+			['']	= regex (p.config.regex)
 		}
 	}
 	local quoted_selectors = never
