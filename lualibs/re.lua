@@ -214,6 +214,8 @@ local exp = m.P{ "Exp",
         * (#seq_follow + patt_error);
   Prefix = "&" * S * m.V"Prefix" / mt.__len
          + "!" * S * m.V"Prefix" / mt.__unm
+		 -- < -- back assertion. Added for traditio.wiki by Alexander Mashin:
+		 + "<" * S * m.V"Prefix" / mm.B     	
          + m.V"Suffix";
     -- % on userdata does nt seem to work in thiscontext, even with a metatable.
 	-- Therefore, falling back to lpeg.Cf. 
