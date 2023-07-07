@@ -58,7 +58,7 @@ A selector can be:
     - `<<#…>>` for `ipairs()`,
     - `<<$…>>` for `pairs()`;
   - function: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value and `param1`, …, `paramn`, and producing the returned value of the function;
-- composite, ordered be priority, from highest to lowest (order of composition can be changed by parentheses):
+- composite, ordered by priority, from highest to lowest (order of composition can be changed by parentheses):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
   - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
