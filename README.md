@@ -92,7 +92,8 @@ formatter.config = {
 		first		= ','	-- ordered choice of selectors.
 	},
 	ipairs		= '#',		-- ipairs() selector.
-	pairs		= '$'		-- pairs() selector.
+	pairs		= '$',		-- pairs() selector.
+	regex		= 'pcre'	-- the default regular expression flavour.
 }
 ```
 
