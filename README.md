@@ -34,8 +34,8 @@ Macro syntax can be:
 - `<<,>>` — the default separator (`p.config.separator = ', '`) will be output, if required,
 - `<<,|; >>` — a custom separator (`; ` in this case) will be output, if required,
 - `<<?selector…>>` (*optional macro*) — if `selector` yields nothing, the macro will not fail, producing an empty string instead, and not causing the enclosing format string to fail,
-- `<<!selector|format string>>` (*conditional macro*) — if `selector` yields nothing, macro will fail if even `format string` is constant and does not fail because of `selector`,
-- `<<!selector|output if selector succeeds|output if selector fails>>` (*conditional macro*) — if `selector` yields nothing, macro will output the second format string.
+- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>`,
+- `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail.
 
 ### Selector
 A selector can be:
@@ -74,26 +74,32 @@ Default value:
 
 ```lua
 formatter.config = {
-	string		= string,	-- string library to use.
-	condense	= '_',		-- "condense" (ignore whitespaces, hyphens and underscores) flag.
-	fillers		= '[-_%s]',	-- characters to ignore when the condense flag is used.
-	conditional	= '!',		-- conditional macro flag.
-	optional	= '?',		-- optional macro flag.
-	separator	= ',',		-- separator macro flag. 
-	key			= '@',		-- key selector.
-	escape		= '\\',		-- escape character.
-	open		= '<<',		-- macro start.
-	pipe		= '|',		-- separator between selector and format string, or between format string and fallback format string.
-	close		= '>>',		-- macro end.
-	operators	= {			-- selector arithmetics.
-		enter		= '.',	-- enter field (change context).
-		cartesian	= '*',	-- cartesian product.
-		union		= '+',	-- union of selectors.
-		first		= ','	-- ordered choice of selectors.
+	string		= string,		-- string library to use.
+	condense	= '_',			-- "condense" (ignore whitespaces, hyphens and underscores) flag.
+	fillers		= '[-_%s]',		-- characters to ignore when the condense flag is used.
+	conditional	= '!',			-- conditional macro flag.
+	optional	= '?',			-- optional macro flag.
+	separator	= ',',			-- separator macro flag.
+	default_separator
+				= ', ',			-- default separator.
+	key			= '@',			-- key selector.
+	self		= '',			-- self selector.
+	parent		= '..',			-- parent selector.
+	unused		= '__unused',	-- a table of unused items.
+	escape		= '\\',			-- escape character.
+	open		= '<<',			-- macro start.
+	pipe		= '|',			-- separator between selector and format string, or between format string and fallback format string.
+	close		= '>>',			-- macro end.
+	unique		= '!1',			-- unique selector for unrepeatable formats.
+	operators	= {				-- selector arithmetics.
+		enter		= '.',		-- enter field (change context).
+		cartesian	= '*',		-- cartesian product.
+		union		= '+',		-- union of selectors.
+		first		= ','		-- ordered choice of selectors.
 	},
-	ipairs		= '#',		-- ipairs() selector.
-	pairs		= '$',		-- pairs() selector.
-	regex		= 'pcre'	-- the default regular expression flavour.
+	ipairs		= '#',			-- ipairs() selector.
+	pairs		= '$',			-- pairs() selector.
+	regex		= 'pcre'		-- the default regular expression flavour.
 }
 ```
 
@@ -203,6 +209,7 @@ After changing configuration, call `formatter.initialise()`.
 | lua/pattern/ | `<<lua/key%d+/>>` | Value |
 | lua'pattern', case-insensitive | `<<lua'key%d+'i>>` | Value |
 | Absent lua'pattern', case-sensitive | `<<lua'key%d+'>>` | nil |
+| Unique constraint | `<</^key\d+$/\|value is <<>><<,>><<!1\|<<>>>>>>` | value is Value1, value is Value2 |
 | **Nested tables** |
 | Nested tables | `<<key.item>>` | Value |
 | Nested tables, regexes | `<</^key$/./^item$/>>` | Value |
