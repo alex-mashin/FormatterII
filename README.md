@@ -5,7 +5,7 @@
 *FormatterII* is a Lua table formatting tool.
 
 ## Requirements
-- Lua 5.1 and 5.2, very support (no regular expressions except native Lua) for Lua 5.3,
+- Lua 5.1 and 5.2, very limited support (no regular expressions except native Lua) for Lua 5.3,
  - `coroutine` table ought to be available,
 - Lua [LPEG](http://www.inf.puc-rio.br/~roberto/lpeg/) library,
 - [lrexlib](https://github.com/rrthomas/lrexlib) (optional).
@@ -13,7 +13,7 @@
 ## Usage
 - `local formatter = require 'FormatterII'` — require library,
 - `formatter.format (format_string, ...)` — format ... values according to `format_string`,
-- `local func = formatter.format (format_string); local formatted = func (table)` — create a function `func` formatting its argument according to `format_string`,
+- `local func = formatter.format (format_string); local formatted = func (table)` — create a function `func` formatting its argument according to `format_string` and then call it,
 - `local config = formatter.config` — get *FormatterII* configuration (mainly, syntax),
 - `formatter.config.open, formatter.config.close = '『', '』'` — use Chinese quotation marks for macro delimiters instead of `<<` and `>>`,
 - `formatter.config.string = mw.ustring` — replace the standard Lua `string` library with [Scribunto](https://www.mediawiki.org/wiki/Extension:Scribunto)'s `mw.ustring`,
@@ -27,23 +27,23 @@ Any format string has a *context*: the outermost macro's context is the first ar
 
 ### Macro
 Macro syntax can be:
-- `<<selector|format string 1|format string 2|…|format string n>>` — each selector instance will be formatted according to the first `format string` that does not return `nil`. This can be used to define callbacks for absent values,
+- `<<selector|format string 1|format string 2|…|format string n>>` — each selector instance will be formatted according to the first `format string` that does not return `nil`. This can be used to define fallbacks for absent values,
 - `<<|format string 1|format string 2|…|format string n>>` — no selector means that the value itself rather than its fields will be output,
 - `<<selector>>` — no format means that `selector` values will be output as they are,
 - `<<>>` — the current value will be output as is,
 - `<<,>>` — the default separator (`p.config.separator = ', '`) will be output, if required,
 - `<<,|; >>` — a custom separator (`; ` in this case) will be output, if required,
 - `<<?selector…>>` (*optional macro*) — if `selector` yields nothing, the macro will not fail, producing an empty string instead, and not causing the enclosing format string to fail,
-- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>`,
-- `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail.
+- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>` will fail, if even the format is constant,
+- `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail. This can be used to prevent repetition of values (emulate a unique selector).
 
 ### Selector
 A selector can be:
-- simple. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures. Below, `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters:
-  - empty, meaning the formatted value itself and not changing the context,
+- simple. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures. Below are subypes of simple selectors. `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters:
+  - `<<>>`, meaning the formatted value itself and not changing the context,
   - `<<'key'…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
   - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
-  - `<</regular extression/…>>` or `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Perl-compatible regular expression, if available,
+  - `<</regular extression/…>>`, assuming that the default flavour of regular expressions is Perl-compatible (`formatter.config.regex = 'pcre'`), or `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Perl-compatible regular expression, if available,
   - `<<gnu/regular extression/…>>` or `<<gnu'regular expression'…>>` — a GNU-compatible regular expression, if available,
   - `<<onig/regular extression/…>>` or `<<onig'regular expression'…>>` — an Oniguruma regular expression, if available,
   - `<<posix/regular extression/…>>` or `<<posix'regular expression'…>>` — a POSIX regular expression, if available,
@@ -51,21 +51,20 @@ A selector can be:
   - `<<lua/regular extression/…>>` or `<<lua'regular expression'…>>` — a standard Lua regular expression,
   - `<<re/regular extression/…>>` or `<<re'regular expression'…>>` — an LPEG [Re](http://www.inf.puc-rio.br/~roberto/lpeg/re.html) "regular expression", with some additional features:
     - `<` — back assertion (`lpeg.B`),
-    - `~>` — fold capture (`lpeg.Cf`),
     - ``{` `}`` — constant capture (`lpeg.Cc`),
     - `{# #}` — argument capture (`lpeg.Carg`);
   - iterating:
     - `<<#…>>` for `ipairs()`,
-    - `<<$…>>` for `pairs()`;
+    - `<<$…>>` for `pairs()` but ordered by keys;
   - function: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value and `param1`, …, `paramn`, and producing the returned value of the function;
-- composite, ordered by priority, from highest to lowest (order of composition can be changed by parentheses):
+- composite, ordered by priority, from highest to lowest (order of composition can be changed by parentheses; priorities and operators are configurable via `formatter.config.operators`):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
   - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
   - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
   - `<<selector1 , selector2…>>` — values returned by `selector1`, if any; otherwise values of `selector2`.
 
-If a selector (except iterating ones) is preceded with an equal sign, it is applyied to table values, not keys. This makes the folloging syntax possible: `<<key selector = value selector…>>`.
+If a selector (except iterating ones) is preceded with an equal sign, it is applied to table values, not keys. This makes the following syntax possible: `<<key selector = value selector…>>`.
 
 ### Configuration
 `formatter.config` contains a table of library configuration variables, mainly describing format string syntax.
@@ -232,7 +231,7 @@ After changing configuration, call `formatter.initialise()`.
 | First non-empty: first | `<< /key\d+/, /item\d+/>>` | Value1 |
 | First non-empty: second | `<< /item\d+/, /key\d+/>>` | Value1 |
 | First non-empty: absent | `<< /item\d+/, /key\d+/>>` | nil |
-| Cartesian: non-empty * non-empty | `<< a.# * b.#|<<@>>: (<<1>>, <<2>>)<<,>>>>` | 1: (Value1, Item1), 2: (Value1, Item2), 3: (Value2, Item1), 4: (Value2, Item2) |
+| Cartesian: non-empty * non-empty | `<< a.# * b.#\|<<@>>: (<<1>>, <<2>>)<<,>>>>` | 1: (Value1, Item1), 2: (Value1, Item2), 3: (Value2, Item1), 4: (Value2, Item2) |
 | **Separators** |
 | Separator, default | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
 | Separator, explicit | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
