@@ -161,6 +161,7 @@ local cases = {
 		{ 'Broken re', { key1 = 'Value' }, '<<re/"key" {: [0-9]+ }/>>', 'LPEG Re selector "key" {: [0-9]+ } does not compile' },
 		{ 'Re key, named capture', { key1 = 'Value' }, '<<re/"key" {:no: [0-9]+ :}/|<<no>>: <<>>>>', '1: Value' },
 		{ 'Absent re key', { item1 = 'Value' }, '<<re/"key" { [0-9]+ }/>>', 'nil' },
+		{ "re'pattern', case-insensitive", { Key1 = 'Value' }, [[<<re'"key" { [0-9]+ }'i>>]], 'Value' },
 		{ 'PCRE // key and <<>>', { key1 = 'Value1', key2 = 'Value2' }, '<</^key(?<no>\\d+)$/|<<@>>: <<>>, >>', 'key1: Value1, key2: Value2, ' },
 		{ "lua'pattern'", { key1 = 'Value' }, "<<lua'key%d+'>>", 'Value' },
 		{ 'lua/pattern/', { key1 = 'Value' }, '<<lua/key%d+/>>', 'Value' },

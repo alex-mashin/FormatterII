@@ -2,12 +2,10 @@
 	Based on the code by Roberto Ierusalimschy:
 	https://github.com/lua/lpeg/blob/master/re.lua
 	
-	Modified initially for traditio.wiki by Alexander Mashin:
+	Modified initially for traditio.wiki and then for SummaryII by Alexander Mashin:
 		* <		-- back assertion	(lpeg.B),
 		* {` `}	-- constant capture	(lpeg.Cc),
 		* {# #}	-- argument capture	(lpeg.Carg).
-
-	To work in MediaWiki, lpeg has to be made a global variable.
 --]]
 
 --
@@ -41,11 +39,16 @@ local mt = getmetatable(mm.P(0)) or {
 
 local version = _VERSION
 
+-- We need re here.
+local re = {
+	string = string
+}
+
 -- No more global accesses after this point
-_ENV = nil     -- does no harm in Lua 5.1
+_ENV = nil	 -- does no harm in Lua 5.1
 
 
-local any = m.P(1)
+local any, start = m.P (1), m.P (true)
 
 
 -- Pre-defined names
@@ -79,7 +82,7 @@ local function updatelocale ()
   Predef.U = any - Predef.u
   Predef.W = any - Predef.w
   Predef.X = any - Predef.x
-  mem = {}    -- restart memoization
+  mem = {}	-- restart memoization
   fmem = {}
   gmem = {}
   local mt = {__mode = "v"}
@@ -98,7 +101,7 @@ local I = m.P(function (s,i) print(i, s:sub(1, i-1)); return i end)
 
 local function patt_error (s, i)
   local msg = (#s < i + 20) and s:sub(i)
-                             or s:sub(i,i+20) .. "..."
+							 or s:sub(i,i+20) .. "..."
   msg = ("pattern error near '%s'"):format(msg)
   error(msg, 2)
 end
@@ -106,9 +109,9 @@ end
 local function mult (p, n)
   local np = mm.P(true)
   while n >= 1 do
-    if n%2 >= 1 then np = np * p end
-    p = p * p
-    n = n/2
+	if n%2 >= 1 then np = np * p end
+	p = p * p
+	n = n/2
   end
   return np
 end
@@ -151,7 +154,7 @@ end
 local num = m.C(m.R"09"^1) * S / tonumber
 
 local String = "'" * m.C((any - "'")^0) * "'" +
-               '"' * m.C((any - '"')^0) * '"'
+			   '"' * m.C((any - '"')^0) * '"'
 
 
 local defined = "%" * Def / function (c,Defs)
@@ -164,28 +167,28 @@ local Range = m.Cs(any * (m.P"-"/"") * (any - "]")) / mm.R
 
 local item = (defined + Range + m.C(any)) / m.P
 
--- % on userdata does nt seem to work in thiscontext, even with a metatable.
+-- % on userdata does nt seem to work in this context, even with a metatable.
 -- Therefore, falling back to lpeg.Cf.
 --[[
 local Class =
-    "["
-  * (m.C(m.P"^"^-1))    -- optional complement symbol
+	"["
+  * (m.C(m.P"^"^-1))	-- optional complement symbol
   * (item * ((item % mt.__add) - "]")^0) /
-                          function (c, p) return c == "^" and any - p or p end
+						  function (c, p) return c == "^" and any - p or p end
   * "]"
 --]]
 local Class =
-    "["
-  * (m.C(m.P"^"^-1))    -- optional complement symbol
+	"["
+  * (m.C(m.P"^"^-1))	-- optional complement symbol
   * m.Cf(item * (item - "]")^0, mt.__add) /
-                          function (c, p) return c == "^" and any - p or p end
+						  function (c, p) return c == "^" and any - p or p end
   * "]"
 
 local function adddef (t, k, exp)
   if t[k] then
-    error("'"..k.."' already defined as a rule")
+	error("'"..k.."' already defined as a rule")
   else
-    t[k] = exp
+	t[k] = exp
   end
   return t
 end
@@ -195,91 +198,108 @@ local function firstdef (n, r) return adddef({n}, n, r) end
 
 local function NT (n, b)
   if not b then
-    error("rule '"..n.."' used outside a grammar")
+	error("rule '"..n.."' used outside a grammar")
   else return mm.V(n)
   end
 end
 
 
-local exp = m.P{ "Exp",
-  Exp = S * ( m.V"Grammar"
+local string = re.string
+local gmatch, match, upper = string.gmatch, string.match, string.upper
+local set = mm.S
+
+local function metagrammar (case_sensitive)
+	local make_pattern_from_string = case_sensitive and function (str)
+		return mm.P (str)
+	end or function (str)
+		local pattern = start
+		for char in gmatch (str, '.') do
+			local capitalised = upper (char)
+			pattern = pattern * (char ~= capitalised and set (char .. capitalised) or char)
+		end
+		return pattern
+	end					
+
+	local exp = m.P{ "Exp",
+	  Exp = S * ( m.V"Grammar"
+			-- % on userdata does nt seem to work in this context, even with a metatable.
+			-- Therefore, falling back to lpeg.Cf.  	
+			--	+ m.V"Seq" * ("/" * S * m.V"Seq" % mt.__add)^0 );
+			+ m.Cf(m.V"Seq" * ("/" * S * m.V"Seq")^0, mt.__add) );
+		-- % on userdata does nt seem to work in this context, even with a metatable.
+		-- Therefore, falling back to lpeg.Cf.  
+	  -- Seq = (m.Cc(m.P"") * (m.V"Prefix" % mt.__mul)^0)
+	  Seq = m.Cf(m.Cc(m.P"") * m.V"Prefix"^0 , mt.__mul)
+			* (#seq_follow + patt_error);
+	  Prefix = "&" * S * m.V"Prefix" / mt.__len
+			 + "!" * S * m.V"Prefix" / mt.__unm
+			 -- < -- back assertion. Added for traditio.wiki by Alexander Mashin:
+			 + "<" * S * m.V"Prefix" / mm.B	 	
+			 + m.V"Suffix";
+		-- % on userdata does nt seem to work in this context, even with a metatable.
+		-- Therefore, falling back to lpeg.Cf. 
+		-- Suffix = m.V"Primary" * S *
+		Suffix = m.Cf(m.V"Primary" * S *
+			  ( ( m.P"+" * m.Cc(1, mt.__pow)
+				+ m.P"*" * m.Cc(0, mt.__pow)
+				+ m.P"?" * m.Cc(-1, mt.__pow)
+				+ "^" * ( m.Cg(num * m.Cc(mult))
+						+ m.Cg(m.C(m.S"+-" * m.R"09"^1) * m.Cc(mt.__pow))
+						)
+				+ "->" * S * ( m.Cg((String + num) * m.Cc(mt.__div))
+							 + m.P"{}" * m.Cc(nil, m.Ct)
+							 + defwithfunc(mt.__div)
+							 )
+				+ "=>" * S * defwithfunc(mm.Cmt)
+				+ ">>" * S * defwithfunc(mt.__mod)
+				+ "~>" * S * defwithfunc(mm.Cf)
 		-- % on userdata does nt seem to work in thiscontext, even with a metatable.
-		-- Therefore, falling back to lpeg.Cf.  	
-        --    + m.V"Seq" * ("/" * S * m.V"Seq" % mt.__add)^0 );
-		+ m.Cf(m.V"Seq" * ("/" * S * m.V"Seq")^0, mt.__add) );
-	-- % on userdata does nt seem to work in thiscontext, even with a metatable.
-	-- Therefore, falling back to lpeg.Cf.  
-  -- Seq = (m.Cc(m.P"") * (m.V"Prefix" % mt.__mul)^0)
-  Seq = m.Cf(m.Cc(m.P"") * m.V"Prefix"^0 , mt.__mul)
-        * (#seq_follow + patt_error);
-  Prefix = "&" * S * m.V"Prefix" / mt.__len
-         + "!" * S * m.V"Prefix" / mt.__unm
-		 -- < -- back assertion. Added for traditio.wiki by Alexander Mashin:
-		 + "<" * S * m.V"Prefix" / mm.B     	
-         + m.V"Suffix";
-    -- % on userdata does nt seem to work in thiscontext, even with a metatable.
-	-- Therefore, falling back to lpeg.Cf. 
-	-- Suffix = m.V"Primary" * S *
-	Suffix = m.Cf(m.V"Primary" * S *
-          ( ( m.P"+" * m.Cc(1, mt.__pow)
-            + m.P"*" * m.Cc(0, mt.__pow)
-            + m.P"?" * m.Cc(-1, mt.__pow)
-            + "^" * ( m.Cg(num * m.Cc(mult))
-                    + m.Cg(m.C(m.S"+-" * m.R"09"^1) * m.Cc(mt.__pow))
-                    )
-            + "->" * S * ( m.Cg((String + num) * m.Cc(mt.__div))
-                         + m.P"{}" * m.Cc(nil, m.Ct)
-                         + defwithfunc(mt.__div)
-                         )
-            + "=>" * S * defwithfunc(mm.Cmt)
-            + ">>" * S * defwithfunc(mt.__mod)
-            + "~>" * S * defwithfunc(mm.Cf)
-    -- % on userdata does nt seem to work in thiscontext, even with a metatable.
-	-- Therefore, falling back to lpeg.Cf.             
-    -- ) % function (a,b,f) return f(a,b) end * S
-    --)^0;
-        ) * S
-    )^0, function (a,b,f) return f(a,b) end );
-  Primary = "(" * m.V"Exp" * ")"
-            + String / mm.P
-            + Class
-            + defined
-            + "{:" * (name * ":" + m.Cc(nil)) * m.V"Exp" * ":}" /
-                     function (n, p) return mm.Cg(p, n) end
-            + "=" * name / function (n) return mm.Cmt(mm.Cb(n), equalcap) end
-            + m.P"{}" / mm.Cp
-            + "{~" * m.V"Exp" * "~}" / mm.Cs
-            + "{|" * m.V"Exp" * "|}" / mm.Ct
-            + "{" * m.V"Exp" * "}" / mm.C
-            -- {` `} -- constant capture. Inserted for traditio.wiki by Alexander Mashin:
-            + "{`" * Predef.space^0 * m.C((any - "`")^1) * S * "`}" / mm.Cc
-            -- {# #} == argument capture. Inserted for traditio.wiki by Alexander Mashin:
-            + "{#" * S * Def * "#}" / getdef            
-            + m.P"." * m.Cc(any)
-            + (name * -arrow + "<" * name * ">") * m.Cb("G") / NT;
-  Definition = name * arrow * m.V"Exp";
-  Grammar = m.Cg(m.Cc(true), "G") *
-    		-- % on userdata does nt seem to work in thiscontext, even with a metatable.
-			-- Therefore, falling back to lpeg.Cf.      
-            -- ((m.V"Definition" / firstdef) * (m.V"Definition" % adddef)^0) / mm.P
-            m.Cf(m.V"Definition" / firstdef * m.Cg(m.V"Definition")^0, adddef) / mm.P
-}
+		-- Therefore, falling back to lpeg.Cf.			 
+		-- ) % function (a,b,f) return f(a,b) end * S
+		--)^0;
+			) * S
+		)^0, function (a,b,f) return f(a,b) end );
+	  Primary = "(" * m.V"Exp" * ")"
+				+ String / make_pattern_from_string
+				+ Class
+				+ defined
+				+ "{:" * (name * ":" + m.Cc(nil)) * m.V"Exp" * ":}" /
+						 function (n, p) return mm.Cg(p, n) end
+				+ "=" * name / function (n) return mm.Cmt(mm.Cb(n), equalcap) end
+				+ m.P"{}" / mm.Cp
+				+ "{~" * m.V"Exp" * "~}" / mm.Cs
+				+ "{|" * m.V"Exp" * "|}" / mm.Ct
+				+ "{" * m.V"Exp" * "}" / mm.C
+				-- {` `} -- constant capture. Inserted for traditio.wiki by Alexander Mashin:
+				+ "{`" * Predef.space^0 * m.C((any - "`")^1) * S * "`}" / mm.Cc
+				-- {# #} == argument capture. Inserted for traditio.wiki by Alexander Mashin:
+				+ "{#" * S * Def * "#}" / getdef			
+				+ m.P"." * m.Cc(any)
+				+ (name * -arrow + "<" * name * ">") * m.Cb("G") / NT;
+	  Definition = name * arrow * m.V"Exp";
+	  Grammar = m.Cg(m.Cc(true), "G") *
+				-- % on userdata does nt seem to work in thiscontext, even with a metatable.
+				-- Therefore, falling back to lpeg.Cf.	  
+				-- ((m.V"Definition" / firstdef) * (m.V"Definition" % adddef)^0) / mm.P
+				m.Cf(m.V"Definition" / firstdef * m.Cg(m.V"Definition")^0, adddef) / mm.P
+	}
 
-local pattern = S * m.Cg(m.Cc(false), "G") * exp / mm.P * (-any + patt_error)
+	return S * m.Cg(m.Cc(false), "G") * exp / mm.P * (-any + patt_error)
+end
 
 
-local function compile (p, defs)
-  if mm.type(p) == "pattern" then return p end   -- already compiled
-  local cp = pattern:match(p, 1, defs)
-  if not cp then error("incorrect pattern", 3) end
-  return cp
+local function compile (p, defs, case_sensitive)
+	if mm.type(p) == "pattern" then return p end   -- already compiled
+	local cp = metagrammar (case_sensitive):match (p, 1, defs)
+	if not cp then error("incorrect pattern", 3) end
+	return cp
 end
 
 local function match (s, p, i)
   local cp = mem[p]
   if not cp then
-    cp = compile(p)
-    mem[p] = cp
+	cp = compile(p)
+	mem[p] = cp
   end
   return cp:match(s, i or 1)
 end
@@ -287,9 +307,9 @@ end
 local function find (s, p, i)
   local cp = fmem[p]
   if not cp then
-    cp = compile(p) / 0
-    cp = mm.P{ mm.Cp() * cp * mm.Cp() + 1 * mm.V(1) }
-    fmem[p] = cp
+	cp = compile(p) / 0
+	cp = mm.P{ mm.Cp() * cp * mm.Cp() + 1 * mm.V(1) }
+	fmem[p] = cp
   end
   local i, e = cp:match(s, i or 1)
   if i then return i, e - 1
@@ -302,22 +322,15 @@ local function gsub (s, p, rep)
   gmem[p] = g
   local cp = g[rep]
   if not cp then
-    cp = compile(p)
-    cp = mm.Cs((cp / rep + 1)^0)
-    g[rep] = cp
+	cp = compile(p)
+	cp = mm.Cs((cp / rep + 1)^0)
+	g[rep] = cp
   end
   return cp:match(s)
 end
 
-
--- exported names
-local re = {
-  compile = compile,
-  match = match,
-  find = find,
-  gsub = gsub,
-  updatelocale = updatelocale,
-}
+-- exported names. re has been declare above.
+re.compile, re.match, re.find, re.gsub, re.updatelocale = compile, match, find, gsub, updatelocale
 
 if version == "Lua 5.1" then _G.re = re end
 

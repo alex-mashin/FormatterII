@@ -30,7 +30,8 @@ local p = {
 		},
 		ipairs		= '#',			-- ipairs() selector.
 		pairs		= '$',			-- pairs() selector.
-		regex		= 'pcre'		-- the default regular expression flavour.
+		regex		= 'pcre',		-- the default regular expression flavour.
+		re			= 'lualibs/re'	-- path to re Lua library.
 	},
 	VERSION	= '0.2'
 }
@@ -368,10 +369,7 @@ end
 -- LPeg's re module:
 local lpeg = load_library 'lpeg'
 local Cp, Ct = lpeg.Cp, lpeg.Ct
-local re_found, re_lib = pcall (require, 'Module:Re')
-if not re_found then
-	re_found, re_lib = pcall (require, 'lualibs/re')
-end
+local re_found, re_lib = pcall (require, p.config.re)
 re_lib.string = p.config.string
 local compile_re = re_lib.compile
 
@@ -388,7 +386,8 @@ local function re (expr, flags)
 	local sub, gsub, upper = string.sub, string.gsub, string.upper
 	local fillers = p.config.fillers
 	local condense, flags = cut_flag (flags, p.config.condense)
-	local valid, compiled = pcall (compile_re, expr, {})
+	local case_insensitive, flags = cut_flag (flags, 'i')
+	local valid, compiled = pcall (compile_re, expr, {}, not case_insensitive)
 	if not valid then
 		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile')
 	end
@@ -420,7 +419,8 @@ local function lua_pattern (expr, flags)
 	local find, gsub, lower, upper = string.find, string.gsub, string.lower, string.upper
 	local fillers = p.config.fillers
 	local condense, flags = cut_flag (flags, p.config.condense)
-	if find (flags or '', 'i', 1, true) then
+	local case_insensitive, flags = cut_flag (flags, 'i')	
+	if case_insensitive then
 		expr = gsub (expr, '(%%?)(%a)', function (percent, letter)
 			if percent == '%' then
 				return '%' .. letter
