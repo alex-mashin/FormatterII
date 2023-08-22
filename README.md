@@ -1,12 +1,12 @@
 # FormatterII
 
-*Version 0.1*
+*Version 0.2*
 
 *FormatterII* is a Lua table formatting tool.
 
 ## Requirements
-- Lua 5.1, limited support for Lua 5.2, even more limited for Lua 5.3,
-  - `coroutine` table ought to be available,
+- Lua 5.1 and 5.2, very support (no regular expressions except native Lua) for Lua 5.3,
+ - `coroutine` table ought to be available,
 - Lua [LPEG](http://www.inf.puc-rio.br/~roberto/lpeg/) library,
 - [lrexlib](https://github.com/rrthomas/lrexlib) (optional).
 
@@ -91,11 +91,12 @@ formatter.config = {
 	pipe		= '|',			-- separator between selector and format string, or between format string and fallback format string.
 	close		= '>>',			-- macro end.
 	unique		= '!1',			-- unique selector for unrepeatable formats.
-	operators	= {				-- selector arithmetics.
-		enter		= '.',		-- enter field (change context).
-		cartesian	= '*',		-- cartesian product.
-		union		= '+',		-- union of selectors.
-		first		= ','		-- ordered choice of selectors.
+	operators	= {				-- operators over selectors' symbols and priorities.
+		{ ['']	= 'intersect' },
+		{ ['.']	= 'enter' },
+		{ ['*']	= 'cartesian' },
+		{ ['+']	= 'union' },
+		{ [',']	= 'first' }
 	},
 	ipairs		= '#',			-- ipairs() selector.
 	pairs		= '$',			-- pairs() selector.
@@ -231,7 +232,7 @@ After changing configuration, call `formatter.initialise()`.
 | First non-empty: first | `<< /key\d+/, /item\d+/>>` | Value1 |
 | First non-empty: second | `<< /item\d+/, /key\d+/>>` | Value1 |
 | First non-empty: absent | `<< /item\d+/, /key\d+/>>` | nil |
-| Cartesian: non-empty * non-empty | `<< a.# * b.# \|<<@\|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>` | (1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2 |
+| Cartesian: non-empty * non-empty | `<< a.# * b.#|<<@>>: (<<1>>, <<2>>)<<,>>>>` | 1: (Value1, Item1), 2: (Value1, Item2), 3: (Value2, Item1), 4: (Value2, Item2) |
 | **Separators** |
 | Separator, default | `<<#\|<<@>>: <<key>><<,>>>>` | 1: Value1, 2: Value2, 3: Value3 |
 | Separator, explicit | `<<#\|<<@>>: <<key>><<,\|; >>>>` | 1: Value1; 2: Value2; 3: Value3 |
@@ -239,4 +240,4 @@ After changing configuration, call `formatter.initialise()`.
 | Separator, header and footer | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
 | Separator, fallback | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
 # Credits
-*FormatterII* is written by Alexander Mashin.
+*FormatterII* is written by Alexander Mashin in 2022-2023.

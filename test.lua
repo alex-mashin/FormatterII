@@ -1,33 +1,7 @@
 local concat = table.concat
 
-local serialise = require 'FormatterII'.format
-local string = require 'FormatterII'.config.string
-
---[[
-Dumping utility for debugging.
-@param mixed var Variable to dump.
-@param bool inline Inline mode.
-@return string Serialise human-readable variable.
---]]
-local function dump (var, inline)
-	local rep = string.rep
-	local shown = {}
-	local function helper (var, indent, inline)
-		if type (var) == 'string' then
-			return "'" .. var .. "'"
-		elseif type (var) ~= 'table' or shown [var] then
-			return tostring (var)
-		else
-			shown [var] = true
-			local serialised = {}
-			for key, value in pairs (var) do
-				serialised [#serialised + 1] = (inline and '' or '\n' .. rep ('\t', indent + 1)) .. helper (key, indent + 1, inline) .. ' = ' .. helper (value, indent + 1, inline)
-			end
-			return (inline and '' or (tostring (var) .. ' ' or 'falsy')) .. '{' .. concat (serialised, inline and ', ' or ',') .. (inline and ' ' or '\n' .. rep ('\t', indent)) .. '}'
-		end
-	end
-	return helper (var, 0, inline)
-end
+local formatii = require 'FormatterII'
+local serialise, dump = formatii.format, formatii.dump
 
 local function escape (str)
 	return str:gsub ('`', '``'):gsub ('|', '\\|')
@@ -48,9 +22,9 @@ local function even (tbl)
 end
 	
 local cases = {
-	--[[{ title = 'Failing',
-		{ '`<<|>>`, nil, header and footer, fallback', nil, '<<|Header <<>> Footer|No value>>', 'No value' },
-	}, --]]
+	{ title = 'Failing',
+		{ '`<<|>>`, nil, header and footer, no fallback', nil, '<<|Header <<>> Footer>>', 'nil' },
+	},
 	{ title = 'Constant format',
 		{ 'Present value, constant format', { key = 'Value' }, 'const string', 'const string' },
 		{ 'Absent value, constant format', {}, 'const string', 'const string' }
@@ -71,6 +45,7 @@ local cases = {
 		{ '`<<|>>`, nil, header and footer', nil, '<<|Header <<>> Footer>>', 'nil' },
 	},
 	{ title = 'Fallbacks',
+		{ '`<<|>>`, nil, header and footer, fallback', nil, '<<|Header <<>> Footer|No value>>', 'No value' },
 		{ 'Absent value with fallback', {}, '<<key|<<>>|fallback>>', 'fallback' },
 		{ 'Absent value with empty fallback', {}, '<<key|<<>>|>>', '' },
 		{ 'Absent value with fallback, short syntax', {}, '<<?key|fallback>>', 'fallback' },
@@ -188,13 +163,21 @@ local cases = {
 		{ 'Absent re key', { item1 = 'Value' }, '<<re/"key" { [0-9]+ }/>>', 'nil' },
 		{ 'PCRE // key and <<>>', { key1 = 'Value1', key2 = 'Value2' }, '<</^key(?<no>\\d+)$/|<<@>>: <<>>, >>', 'key1: Value1, key2: Value2, ' },
 		{ "lua'pattern'", { key1 = 'Value' }, "<<lua'key%d+'>>", 'Value' },
-		{ "lua/pattern/", { key1 = 'Value' }, "<<lua/key%d+/>>", 'Value' },
+		{ 'lua/pattern/', { key1 = 'Value' }, '<<lua/key%d+/>>', 'Value' },
 		{ "lua'pattern', case-insensitive", { Key1 = 'Value' }, "<<lua'key%d+'i>>", 'Value' },
 		{ "Absent lua'pattern', case-sensitive", { Key1 = 'Value' }, "<<lua'key%d+'>>", 'nil' },
-		{ "Unique constraint", { key1 = 'Value1', key2 = 'Value1', key3 = 'Value2' }, "<</^key\\d+$/|value is <<>><<,>><<!1|<<>>>>>>", 'value is Value1, value is Value2' }
+		{ 'Unique constraint', { key1 = 'Value1', key2 = 'Value1', key3 = 'Value2' }, '<</^key\\d+$/|value is <<>><<,>><<!1|<<>>>>>>', 'value is Value1, value is Value2' },
+		{ '__unused', { key1 = 'Value1', key2 = 'Value2', item3 = 'Value3' }, '<<__unused.$|<<@>>=<<>><<,>>>>', 'item3=Value3, key1=Value1, key2=Value2' },
+		{ '__unused', { key1 = 'Value1', key2 = 'Unused2', item3 = 'Unused1' }, '<<key1|value is <<>><<,>>>>. Unused: <<__unused.$|<<@>>=<<>><<,>>>>', 'value is Value1. Unused: item3=Unused1, key2=Unused2' },
+		{ '__unused, but there are none', { key1 = 'Value1' }, '<<key1|value is <<>><<,>>>>.<<|Unused: <<__unused.$|<<@>>=<<>><<,>>>>>>', 'nil' },
+		{ '__unused, but there are none, but there is an empty fallback for that', { key1 = 'Value1' }, '<<key1|value is <<>><<,>>>>.<<|Unused: <<__unused.$|<<@>>=<<>><<,>>>>|>>', 'value is Value1.' },
+		{ '__unused', { key1 = 'Value1', key2 = 'Value2', item3 = 'Value3' }, '<</^key\\d+$/|value is <<>><<,>>>>. Unused: <<__unused.$|<<@>>=<<>><<,>>>>', 'value is Value1, value is Value2. Unused: item3=Value3' }
 	},
 	{ title = 'Nested tables',
 		{ 'Nested tables', { key = { item = 'Value' } }, '<<key.item>>', 'Value' },
+		{ 'Iterating nested tables: $', { key = { item1 = 'Value1', item2 = 'Value2' } }, '<<key.$>>', 'Value1Value2' },
+		{ 'Iterating nested tables: $', { key = { item1 = 'Value1', item2 = 'Value2' } }, '<<key.$|<<>><<,>>>>', 'Value1, Value2' },		
+		{ 'Iterating nested tables: #', { key = { 'Value1', 'Value2' } }, '<<key.#>>', 'Value1Value2' },
 		{ 'Nested tables, regexes', { key = { item = 'Value' } }, '<</^key$/./^item$/>>', 'Value' },
 		{ 'Nested tables, outer absent', { key = { item = 'Value' } }, '<<item.item>>', 'nil' },
 		{ 'Nested tables, upper level as fallback', { key = { item = 'Value' }, desc = 'Description' }, '<<key|<<item>>, <<desc>>>>', 'Value, Description' },
@@ -216,7 +199,7 @@ local cases = {
 		{ 'First non-empty: first', { key1 = 'Value1' }, '<< /key\\d+/, /item\\d+/>>', 'Value1' },
 		{ 'First non-empty: second', { key1 = 'Value1' }, '<< /item\\d+/, /key\\d+/>>', 'Value1' },
 		{ 'First non-empty: absent', { field1 = 'Value1' }, '<< /item\\d+/, /key\\d+/>>', 'nil' },
-		{ 'Cartesian: non-empty * non-empty', { a = { 'Value1', 'Value2' }, b = { 'Item1', 'Item2' } }, '<< a.# * b.# |<<@|(<<1>>,<<2>>)>>: <<1>>:<<2>><<,>>>>', '(1,1): Value1:Item1, (1,2): Value1:Item2, (2,1): Value2:Item1, (2,2): Value2:Item2' },
+		{ 'Cartesian: non-empty * non-empty', { a = { 'Value1', 'Value2' }, b = { 'Item1', 'Item2' } }, '<< a.# * b.#|<<@>>: (<<1>>, <<2>>)<<,>>>>', '1: (Value1, Item1), 2: (Value1, Item2), 3: (Value2, Item1), 4: (Value2, Item2)' },
 	},
 	{ title = 'Separators',
 		{ 'Separator, default', { { key = 'Value1' }, { key = 'Value2' }, { key = 'Value3' } }, '<<#|<<@>>: <<key>><<,>>>>', '1: Value1, 2: Value2, 3: Value3' },
@@ -255,6 +238,7 @@ for _, section in ipairs (cases) do
 			.. ' | ' .. escape (actual)
 			.. ' |'
 	end
+	-- end
 end
 tested [1] = 'Succeeded: ' .. tostring (succeeded) .. ', failed: ' .. tostring (failed)
 print (concat (tested, '\n'))

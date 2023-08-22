@@ -1,8 +1,7 @@
 -- https://github.com/alex-mashin/FormatterII
-
--- @TODO: order of pairs() in Lua 5.2+.
--- @TODO: generate tables.
-
+--[[
+	Library configuration, alterable by the user.
+--]]
 local p = {
 	config = {
 		string		= string,		-- string library to use.
@@ -22,17 +21,18 @@ local p = {
 		pipe		= '|',			-- separator between selector and format string, or between format string and fallback format string.
 		close		= '>>',			-- macro end.
 		unique		= '!1',			-- unique selector for unrepeatable formats.
-		operators	= {				-- selector arithmetics.
-			enter		= '.',		-- enter field (change context).
-			cartesian	= '*',		-- cartesian product.
-			union		= '+',		-- union of selectors.
-			first		= ','		-- ordered choice of selectors.
+		operators	= {				-- operators over selectors' symbols and priorities.
+			{ ['']	= 'intersect' },
+			{ ['.']	= 'enter' },
+			{ ['*']	= 'cartesian' },
+			{ ['+']	= 'union' },
+			{ [',']	= 'first' }
 		},
 		ipairs		= '#',			-- ipairs() selector.
 		pairs		= '$',			-- pairs() selector.
 		regex		= 'pcre'		-- the default regular expression flavour.
 	},
-	VERSION	= '0.1'
+	VERSION	= '0.2'
 }
 
 --[[
@@ -52,7 +52,7 @@ local function load_library (library)
 end
 
 --[[
-Localising standard functions:
+	Localising standard functions:
 --]]
 local unpack = unpack or table.unpack
 local concat, sort = table.concat, table.sort
@@ -64,10 +64,54 @@ local function error_msg (msg)
 end
 
 --[[
-Dumping utility for debugging.
-@param mixed var Variable to dump.
-@param bool inline Inline mode.
-@return string Serialise human-readable variable.
+	Make the library work the same way in Lua 5.1 and Lua 5.2
+--]]
+
+--[[
+	Whether a metamethod exists.
+	@param string func Function that is supposed to invoke the metamethod.
+	@param ?string method Metamethod to check.
+	@return bool True, if the metamethod is supported.
+--]]
+local function metamethod_supported (func, method)
+	return not _G [func] (setmetatable ({ 0 }, { [method or '__' .. func] = function (tbl) return end }))
+end
+
+--[[
+	Emulate a metamethod, if it does not exist.
+
+	@param string func Function that is supposed to invoke the metamethod.
+	@param ?string method Metamethod to emulate.
+	@return function Function redefined to take metamethod into account.
+--]]
+local function emulate_metamethod (func, method)
+	if not metamethod_supported (func, method) then
+		local raw = _G [func]
+		return function (tbl, ...)
+			local metatable = getmetatable (tbl)
+			local metamethod = metatable and metatable [method or '__' .. func]
+			-- Do not simplify to return ... and ... or ...:
+			if metamethod then
+				return metamethod (tbl, ...)
+			else
+				return raw (tbl, ...)
+			end
+		end
+	else
+		return _G [func]
+	end
+end
+
+--[[
+	Redefined pairs and ipairs.
+--]]
+local pairs, ipairs = emulate_metamethod 'pairs', emulate_metamethod 'ipairs'
+
+--[[
+	Dumping utility for debugging.
+	@param mixed var Variable to dump.
+	@param bool inline Inline mode.
+	@return string Serialise human-readable variable.
 --]]
 local function dump (var, inline)
 	local rep = string.rep
@@ -88,71 +132,34 @@ local function dump (var, inline)
 	end
 	return helper (var, 0, inline)
 end
-
-
---[[
-Redefined pairs and ipairs.
---]]
+p.dump = dump
 
 --[[
-Whether a metamethod exists.
-@param string func Function that is supposed to invoke the metamethod.
-@param ?string method Metamethod to check.
-@return bool True, if the metamethod is supported.
---]]
-local function metamethod_supported (func, method)
-	return not _G [func] (setmetatable ({ 0 }, { [method or '__' .. func] = function (tbl) end }))
-end
-
---[[
-Emulate a metamethod, if it does not exist.
-
-@param string func Function that is supposed to invoke the metamethod.
-@param ?string method Metamethod to emulate.
-@return function Function redefined to take metamethod into account.
---]]
-local function emulate_metamethod (func, method)
-	if not metamethod_supported (func, method) then
-		local raw = _G [func]
-		return function (tbl, ...)
-			local metatable = getmetatable (tbl)
-			local metamethod = metatable and metatable [method or '__' .. func]
-			-- Do not simplify to return ... and ... or ...:
-			if metamethod then
-				return metamethod (tbl, ...)
-			else
-				return raw (tbl, ...)
-			end
-		end
-	else
-		return _G [func]
-	end
-end
-
-local pairs, ipairs = emulate_metamethod 'pairs', emulate_metamethod 'ipairs'
-	
---[[
-Wrap a table so it can fall back to "parent" table for items and return self as item [''].
-	
-@param mixed var Table or other variable to wrap,
-@param ?string name var's name in parent,
-@param ?table parent Its parent table,
-@param ?string serialised var's serialisation for __tostring.
-@return table The wrapped table.
+	Wrap a table so it can fall back to "parent" table for items and return self as item [''].
+		
+	@param mixed var Table or other variable to wrap,
+	@param ?string name var's name in parent,
+	@param ?table parent Its parent table,
+	@param ?string serialised var's serialisation for __tostring.
+	@return table The wrapped table.
 --]]
 local function wrap_table (var, name, parent, serialised)
 	if type (var) ~= 'table' then
+		return var
+	end
+	
+	if rawget (var, '__wrapped') then
+		-- already wrapped.
 		return var
 	end
 
 	-- Localising:
 	local config = p.config
 	local key_selector, self_selector, parent_selector, unused_selector
-		= config.key, config.self, config.unused, config.parent
+		= config.key, config.self, config.parent, config.unused
 	
 	local var_serialised = serialised and tostring (serialised) or var and tostring (var) or nil
-	local var = type (var) == 'table' and var or { var }
-	local len = type (var) == 'table' and #var or 0
+	local len = #var --type (var) == 'table' and #var or 0
 
 	-- For keys not used by the format:
 	local unused = {}
@@ -160,7 +167,16 @@ local function wrap_table (var, name, parent, serialised)
 		unused [key] = true
 	end
 	
-	return setmetatable ({}, {
+	-- For ordered pairs():
+	local index = {}
+	for key in next, var do
+		index [#index + 1] = key
+	end
+	sort (index, function (a, b)
+		return type (a) == 'number' and type (b) == 'number' and a < b or dump (a) < dump (b)
+	end)
+	
+	return setmetatable ({ __wrapped = true }, {
 		__index = function (tbl, key)
 			-- self:
 			if key == self_selector then
@@ -172,18 +188,22 @@ local function wrap_table (var, name, parent, serialised)
 				return parent -- already wrapped.
 			end
 			
-			local item
-			
-			-- a table of unused items:
-			if key == unused_selector then
-				item = {}
-				for key, _ in pairs (unused) do
-					item [key] = rawget (var, key)
+			-- special method mark_used:
+			if key == 'mark_used' then
+				return function (_, key)
+					unused [key] = nil
 				end
-				return item
 			end
 
-			if key == key_selector then
+			local item
+
+			if key == unused_selector then
+				-- a table of unused items:			
+				item = {}
+				for unused_key, _ in --[[ordered_]]pairs (unused) do
+					item [unused_key] = rawget (var, unused_key)
+				end
+			elseif key == key_selector then
 				-- table key:
 				item = name
 			else
@@ -195,35 +215,37 @@ local function wrap_table (var, name, parent, serialised)
 				return nil
 			end
 			
-			-- Mark item as used:
-			unused [key] = nil
-			
 			return wrap_table (item, key, tbl)
 		end,
 		__tostring = function (tbl)
 			return var_serialised
 		end,
 		__ipairs = function (tbl)
-			return function (tbl, i)
+			return function (_, i)
 				i = i + 1
-				if i <= len then return i, wrap_table (var [i], i, var) end
-			end, var, 0
+				if i <= len then
+					return i, wrap_table (var [i], i, var)
+				end
+			end, tbl, 0
 		end,
 		__pairs = function (tbl)
-			return function (tbl, key)
-				local value
-				key, value = next (var, key)
-				if value ~= nil then return key, wrap_table (value, key, var) end
-			end, var, nil
+			local i, n = 0, #index
+			return function (_, __)
+				i = i + 1
+				if i <= n then
+					local key = index [i]
+					return key, wrap_table (var [key], key, var)
+				end
+			end, tbl
 		end
 	})
 end
 
 --[[
-Merge tables.
-	
-@param table ... Tables to merge.
-@return table Merged table.
+	Merge tables.
+		
+	@param table ... Tables to merge.
+	@return table Merged table.
 --]]
 local function merge (...)
 	local merged = {}
@@ -232,28 +254,28 @@ local function merge (...)
 			merged [key] = value
 		end
 	end
-	return merged
+	return merged -- do not wrap here!
 end
 
 --[[
-Convert to number, if convertible; leave unchanged otherwise.
-@param mixed value The value to convert.
-@return mixed The converted value.
+	Convert to number, if convertible; leave unchanged otherwise.
+	@param mixed value The value to convert.
+	@return mixed The converted value.
 --]]
 local function try_tonumber (value)
 	return tonumber (value) or value
 end
 
 --[[
-String iteration
+	String iteration
 --]]
 
 --[[
-Make a string iterator from a matcher.
+	Make a string iterator from a matcher.
 
-@param function matcher A function accepting a string and offset
-	and returning match's offset, match's finish and the match itself.
-@return function A string iterator.
+	@param function matcher A function accepting a string and offset
+		and returning match's offset, match's finish and the match itself.
+	@return function A string iterator.
 --]]
 local function string_iterator (matcher)
 	local sub = p.config.string.sub
@@ -274,12 +296,12 @@ local function string_iterator (matcher)
 end
 
 --[[
-Make a comparator function from a plain value.
-	
-@param mixed value A plain value to compare with.
-@return function A comparator function accepting a string and an offset
-	and returning an offset and end position of the match and a table of captures.
-@return mixed A copy of value, for table_iterator (trivial table[key] case).
+	Make a comparator function from a plain value.
+		
+	@param mixed value A plain value to compare with.
+	@return function A comparator function accepting a string and an offset
+		and returning an offset and end position of the match and a table of captures.
+	@return mixed A copy of value, for table_iterator (trivial table[key] case).
 --]]
 local function exactly (value)
 	return string_iterator (function (str, offset)
@@ -290,12 +312,12 @@ local function exactly (value)
 end
 
 --[[
-Extract a flag from a string of flags.
+	Extract a flag from a string of flags.
 
-@param string flags Flags.
-@param string flag Flag to search.
-@return bool True, if flag is present in flags.
-@return string Flags with the flag removed.
+	@param string flags Flags.
+	@param string flag Flag to search.
+	@return bool True, if flag is present in flags.
+	@return string Flags with the flag removed.
 --]]
 local function cut_flag (flags, flag)
 	local string = p.config.string
@@ -313,11 +335,11 @@ local function cut_flag (flags, flag)
 end
 
 --[[
-Returns a factory of comparator functions accepting a regular expression.
-	
-@param string flavour Type of regex: pcre, gnu, onig, posix, tre.
-@return function (string expr, string flags) -> function ( (string, offset) -> (offset, end, {captures}) )
-	or nil, if the library is not available.
+	Returns a factory of comparator functions accepting a regular expression.
+		
+	@param string flavour Type of regex: pcre, gnu, onig, posix, tre.
+	@return function (string expr, string flags) -> function ( (string, offset) -> (offset, end, {captures}) )
+		or nil, if the library is not available.
 --]]
 local function regex (flavour)
 	local lib = load_library ('rex_' .. flavour)
@@ -326,8 +348,7 @@ local function regex (flavour)
 	end
 	
 	local new_regex = lib.new
-	local gsub = p.config.string.gsub
-	local fillers = p.config.fillers
+	local gsub, fillers = p.config.string.gsub, p.config.fillers
 	return function (expr, flags)
 		local condense, flags = cut_flag (flags, p.config.condense)
 		local valid, compiled = pcall (new_regex, expr, flags)
@@ -355,12 +376,12 @@ re_lib.string = p.config.string
 local compile_re = re_lib.compile
 
 --[[
-Make a comparator function from an LPEG Re selector.
-	
-@param string expr LPEG Re selector.
-@param string flags A string of flags.
-@return function A comparator function accepting a string and an offset
-	and returning an offset and end position of the match and a table of captures.
+	Make a comparator function from an LPEG Re selector.
+		
+	@param string expr LPEG Re selector.
+	@param string flags A string of flags.
+	@return function A comparator function accepting a string and an offset
+		and returning an offset and end position of the match and a table of captures.
 --]]
 local function re (expr, flags)
 	local string = p.config.string
@@ -387,11 +408,11 @@ local function re (expr, flags)
 end
 
 --[[
-Generates Lua pattern iterator.
-@param string expr Lua regular expression.
-@param string flags A string of flags.	
-@return function A comparator function accepting a string and an offset
-	and returning an offset and end position of the match and a table of captures.
+	Generates Lua pattern iterator.
+	@param string expr Lua regular expression.
+	@param string flags A string of flags.	
+	@return function A comparator function accepting a string and an offset
+		and returning an offset and end position of the match and a table of captures.
 --]]
 -- @todo: improve.
 local function lua_pattern (expr, flags)
@@ -415,38 +436,19 @@ local function lua_pattern (expr, flags)
 end
 
 --[[
-Table iteration
+	Table iteration
 --]]
 
 --[[
-Table iterator that replaces pairs() but iterates in order of keys.
+	Makes a table iterator from a string iterator.
 
-@param mixed tbl Iterated table.
-@return function The iterator. 
---]]
-local function ordered_pairs (tbl)
-	local index = {}
-	for key, _ in pairs (tbl) do
-		index [#index + 1] = key
-	end
-	sort (index)
-	local i, n = 0, #index
-	return function (tbl, _)
-		i = i + 1
-		if i <= n then return index [i], tbl [index [i]] end
-	end, tbl
-end
-
---[[
-Makes a table iterator from a string iterator.
-
-@param bool iterate_value True, if string_iterator will be applied to table values; false, if to keys.
-@param function|string string_iterator A function accepting a string to iterate
-	and returning an iterator over a string; yielding string value and, optionally, captures;
-	or an error message.
-@param ?mixed exact_key If set, and iterate_value == false, then it is a special case; simply table[key].
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	@param bool iterate_value True, if string_iterator will be applied to table values; false, if to keys.
+	@param function|string string_iterator A function accepting a string to iterate
+		and returning an iterator over a string; yielding string value and, optionally, captures;
+		or an error message.
+	@param ?mixed exact_key If set, and iterate_value == false, then it is a special case; simply table[key].
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
 local function table_iterator (iterate_value, string_iterator, exact_key)
 	-- Special case: error message instead of an iterator.
@@ -475,7 +477,7 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 	-- Generic case: filtering values or filtering keys with a regular expression:
 	return function (tbl)
 		return wrap (function ()
-			for key, value in ordered_pairs (tbl or {}) do
+			for key, value in --[[ordered_]]pairs (tbl or {}) do
 				local iterated_string = iterate_value and value or key
 				for match, captures in string_iterator (iterated_string) do
 					-- @todo: save match and captures somewhere in tbl (not tbl[key]).
@@ -487,10 +489,10 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 end
 
 --[[
-Table iterator that yields the table itself.
+	Table iterator that yields the table itself.
 
-@param mixed var Iterated variable.
-@return function A function that returns an iterator over a table yielding key, value.
+	@param mixed var Iterated variable.
+	@return function A function that returns an iterator over a table yielding key, value.
 --]]
 local function self (var)
 	return wrap (function ()
@@ -499,23 +501,27 @@ local function self (var)
 end
 
 --[[
-Converts a function to a table iterator yielding its results.
-	
-@param string name Function index in the table. The function should accept zero or more parameters, then the table.
-@param table ... Additional parameters to function.
-@return A function that returns an iterator over a table
-	yielding key, value, captures.
+	Converts a function to a table iterator yielding its results.
+		
+	@param string name Function index in the table. The function should accept zero or more parameters, then the table.
+	@param table ... Additional parameters to function.
+	@return A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
 local function function2table_iterator (name, ...)
 	local params = {...}
 	return function (tbl)
 		local func = tbl [name]
+		if not func then
+			return
+		end
 		local resolved = {}
 		for _, param_pair in ipairs (params) do
 			local param = param_pair.body
 			resolved [#resolved + 1] = type (param) == 'function' and param (tbl) or param -- can be format or a constant string.
 		end
-		local results = { func and (#resolved > 0 and func (unpack (resolved), tbl) or func (tbl)) or nil } -- cannot be simplified.
+		resolved [#resolved + 1] = tbl
+		local results = { func (unpack (resolved), tbl) }
 		return wrap (function ()
 			for _, result in ipairs (results) do
 				yield (name, result, tbl)
@@ -524,17 +530,18 @@ local function function2table_iterator (name, ...)
 	end
 end
 
+local operators = {}
 --[[
-Returns a table iterator that yields table items only yielded by the both iterators.
-	
-@param function iterator1 A function that returns an iterator over a table
-	yielding key, value, captures.
-@param function iterator2 A function that returns an iterator over a table
-	yielding key, value, captures.
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	Returns a table iterator that yields table items only yielded by the both iterators.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
-local function intersect (iterator1, iterator2)
+function operators.intersect (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
 			local key_set, capture_sets = {}, {}
@@ -553,22 +560,22 @@ local function intersect (iterator1, iterator2)
 end
 
 --[[
-Returns a table iterator that yields items yielded by the second iterator over items yielded by the first one.
-	
-@param function iterator1 A function that returns an iterator over a table
-	yielding key, value, captures.
-@param function iterator2 A function that returns an iterator over a table
-	yielding key, value, captures.
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	Returns a table iterator that yields items yielded by the second iterator over items yielded by the first one.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
-local function enter (iterator1, iterator2)
+function operators.enter (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
 			for key1, value1, captures1 in iterator1 (tbl) do
 				if type (value1) == 'table' then
 					for key2, value2, captures2 in iterator2 (value1) do
-						-- @todo: somehow include key1, value1 and match1?
+						-- @todo: somehow include key1 ('@@')?
 						yield (key2, value2, merge (captures1, captures2))
 					end
 				end
@@ -578,21 +585,27 @@ local function enter (iterator1, iterator2)
 end
 
 --[[
-Returns a table iterator that yields items from a cartesian product of two iterators.
-	
-@param function iterator1 A function that returns an iterator over a table
-	yielding key, value, captures.
-@param function iterator2 A function that returns an iterator over a table
-	yielding key, value, captures.
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	Returns a table iterator that yields items from a cartesian product of two iterators.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
-local function cartesian (iterator1, iterator2)
+function operators.cartesian (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
+			local counter = 0
 			for key1, value1, captures1 in iterator1 (tbl) do
 				for key2, value2, captures2 in iterator2 (tbl) do
-					yield ({ key1, key2 }, { value1, value2 }, merge (captures1, captures2))
+					counter = counter + 1
+					yield (
+						counter,
+						wrap_table ({ value1, value2 }, counter, tbl),
+						merge (captures1, captures2)
+					)
 				end
 			end
 		end)
@@ -600,16 +613,16 @@ local function cartesian (iterator1, iterator2)
 end
 
 --[[
-Returns a table iterator that yields items yielded by the first and then the second iterator.
-	
-@param function iterator1 A function that returns an iterator over a table
-	yielding key, value, captures.
-@param function iterator2 A function that returns an iterator over a table
-	yielding key, value, captures.
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	Returns a table iterator that yields items yielded by the first and then the second iterator.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
-local function union_all (iterator1, iterator2)
+function operators.union (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
 			for key1, value1, captures1 in iterator1 (tbl) do
@@ -623,17 +636,17 @@ local function union_all (iterator1, iterator2)
 end
 
 --[[
-Returns a table iterator that yields items yielded by the first iterator, if any,
-	and then the second iteratorm if the first yields nothing.
-	
-@param function iterator1 A function that returns an iterator over a table
-	yielding key, value, captures.
-@param function iterator2 A function that returns an iterator over a table
-	yielding key, value, captures.
-@return function A function that returns an iterator over a table
-	yielding key, value, captures.
+	Returns a table iterator that yields items yielded by the first iterator, if any,
+		and then the second iteratorm if the first yields nothing.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
 --]]
-local function first (iterator1, iterator2)
+function operators.first (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
 			local yielded = false
@@ -651,10 +664,10 @@ local function first (iterator1, iterator2)
 end
 
 --[[
-Implementation of # (ipairs) and * (pairs) selectors.
-	
-@param function func ipairs or pairs.
-@return false (not nil) for absent values.
+	Implementation of # (ipairs) and * (pairs) selectors.
+		
+	@param function func ipairs or pairs.
+	@return false (not nil) for absent values.
 --]]
 local function iterator (func)
 	return function (tbl)
@@ -669,16 +682,16 @@ local function iterator (func)
 end
 
 --[[
-Formatting tables
+	Formatting tables
 --]]
 
 local empty = ''
 
 --[[
-Returns a table of two formatter functions made from chunks (strings or macros): for the loop body and for the separator.
-	
-@param table chunks Strings and macros, optional separator and conditional fields.
-@return { body = function, separator = function } Two formatter functions that accept a table and return a string: for the loop body and for the separator.
+	Returns a table of two formatter functions made from chunks (strings or macros): for the loop body and for the separator.
+		
+	@param table chunks Strings and macros, optional separator and conditional fields.
+	@return { body = function, separator = function } Two formatter functions that accept a table and return a string: for the loop body and for the separator.
 --]]
 local function make_formatter (chunks)
 	return {
@@ -730,11 +743,22 @@ local function make_macro (selector, ...)
 	local formats = {...}
 	return function (tbl)
 		-- Loop over <<...||format1||...|formatn>>. Return the first successful (non-nil) format:
+		local i = 0
 		for _, formatter in ipairs (formats) do
 			local values, separator = {}, ''
 			-- Loop over value yielded by <<selector...>>:
 			for key, value, captures in selector (tbl) do
-				local extended_value = captures and wrap_table (merge (type (value) == 'table' and value or {}, captures), key, tbl, value) or value
+				i = i + 1
+				if tbl and type (tbl) == 'table' and tbl.mark_used then
+					tbl:mark_used (key)
+				end
+				local extended_value
+				if captures then
+					extended_value = type (value) == 'table' and value or { [0] = value }
+					extended_value = wrap_table (merge (extended_value, captures), key, tbl, value)
+				else
+					extended_value = value
+				end
 				local formatted = formatter.body (extended_value)
 				values [#values + 1] = formatted
 				-- @TODO: formatter.separator.separator.
@@ -812,77 +836,76 @@ local function quoted (quote)
 end
 
 --[[
-Return the sum of the values of a numbered table, wrapped in lpeg.P().
+	Return the sum of the values of a table, wrapped in lpeg.P(). Values are ordered from longest to shortest.
 
-@param table.
-@return userdata LPEG grammar.
+	@param table.
+	@return userdata LPEG grammar.
 --]]
-local function sumP (tbl)
+local function value_sum (tbl)
 	sort (tbl, function (a, b)
 		return #a > #b
 	end)
 	local sum = never
-	for _, tbl in ipairs (tbl) do
-		sum = sum + P (tbl)
+	for _, item in ipairs (tbl) do
+		sum = sum + P (item)
 	end
 	return sum
 end
 
 --[[
-Return the sum of the keys of a table, wrapped in lpeg.P(). Keys are ordered from longest to shortest.
+	Return the sum of the keys of a table, wrapped in lpeg.P(). Keys are ordered from longest to shortest.
 
-@param table.
-@return userdata LPEG grammar.
+	@param table.
+	@return userdata LPEG grammar.
 --]]
 local function key_sum (tbl)
 	local keys = {}
 	for key, _ in pairs (tbl) do
 		keys [#keys + 1] = key
 	end
-	return sumP (keys)
+	return value_sum (keys)
 end
 
---[[
-Return the sum of the values of a table, wrapped in lpeg.P(). Values are ordered from longest to shortest.
-
-@param table.
-@return userdata LPEG grammar.
---]]
-local function value_sum (tbl)
-	local values = {}
-	for _, value in pairs (tbl) do
-		values [#values + 1] = value
-	end
-	return sumP (values)
-end
 
 local equals, parentheses, quotes, comma = '=', { '(', ')' }, S[['"]], ','
 
---[[
-Rule for regular expression delimiter.
+local operator_signs = value_sum ((function ()
+	local operators = p.config.operators
+	local signs = {}
+	for _, same_priority in ipairs (operators) do
+		for sign, _ in pairs (same_priority) do
+			if sign ~= '' then
+				signs [#signs + 1] = sign
+			end
+		end
+	end
+	return signs
+end) ())
 
-@return userdata LPEG
+--[[
+	Rule for regular expression delimiter.
+
+	@return userdata LPEG
 --]]
 local function regex_delim ()
 	return any
 		- (alnum + space + quotes + parentheses [1] + parentheses[2])
-		- value_sum (p.config.operators)
-		- p.config.condense - p.config.escape - p.config.pipe - p.config.key
+		- operator_signs - p.config.condense - p.config.escape - p.config.pipe - p.config.key
 end
 
 --[[
-Rule for flags for regular expressions.
+	Rule for flags for regular expressions.
 
-@return userdata LPEG.
+	@return userdata LPEG.
 --]]
 local function regex_flag ()
 	return S'AiDsxXmUu' + p.config.condense
 end
 
 --[[
-Return a rule for quoted selectors.
+	Return a rule for quoted selectors.
 
-@return userdata LPEG for quoted selectors.
+	@return userdata LPEG for quoted selectors.
 --]]
 local function quoted_selector ()
 	-- '', "", re'', re"", pcre'', pcre"", lua'', lua"", //, re//, pcre//, lua//:
@@ -919,7 +942,7 @@ local function quoted_selector ()
 end
 
 --[[
-	Define the format string grammar
+	Define the format string grammar.
 --]]
 
 --[[
@@ -929,27 +952,21 @@ end
 --]]
 local function priorities (atomic)
 	-- Selector 'arithmetics' indexed by priority:
-	-- @todo: move to p.config
-	local operators_by_priority = {
-		{ [empty]							= intersect	},
-		{ [p.config.operators.enter]		= enter },
-		{ [p.config.operators.cartesian]	= cartesian },
-		{ [p.config.operators.union]		= union_all },
-		{ [p.config.operators.first]		= first }
-	}
+	local by_priority = p.config.operators
 	local operand = atomic
-	for priority, operators in ipairs (operators_by_priority) do
-		operand = ( operand * space ^ 0 * Cg ( C ( key_sum (operators) ) * space ^ 0 * operand ) ^ 0 ):Cf ( function (selector1, operator, selector2)
-			return operators [operator] (selector1, selector2)
+	for priority, same_priority in ipairs (by_priority) do
+		operand = ( operand * space ^ 0 * Cg ( C ( key_sum (same_priority) ) * space ^ 0 * operand ) ^ 0 )
+		:Cf ( function (selector1, operator, selector2)
+			return operators [same_priority [operator]] (selector1, selector2)
 		end )
 	end
 	return operand
 end
 
 --[[
-Create metagrammar for the formatter string.
+	Create metagrammar for the formatter string.
 
-@return userdata LPEG grammar.
+	@return userdata LPEG grammar.
 --]]
 local function make_meta_grammar()
 	local conf = p.config
@@ -1000,7 +1017,7 @@ local function make_meta_grammar()
 		ipairs		= P (p.config.ipairs) * Cc (iterator (ipairs)),
 		
 		-- $ (pairs() iterator):
-		pairs		= P (p.config.pairs) * Cc (iterator (ordered_pairs)),
+		pairs		= P (p.config.pairs) * Cc (iterator (--[[ordered_]]pairs)),
 		
 		-- Optional equal sign, for selectors, filtering values:
 		equals		= ( equals * Cc (true) + Cc (false) ) * space ^ 0,
@@ -1017,7 +1034,7 @@ local function make_meta_grammar()
 		
 		-- unquoted static iterator for values. Simple and faster than dynamic.
 		unquoted	= V'equals' * ( V'word' / try_tonumber / exactly )
-					* #( P (space) + value_sum (p.config.operators) + separator + pipe + close ) / table_iterator,
+					* #( P (space) + operator_signs + separator + pipe + close ) / table_iterator,
 		
 		-- Single item selector with dynamic key. Empty selector means the variable itself rather than one of its items.
 		-- Returns false (not nil) for absent value:
@@ -1032,23 +1049,23 @@ local function make_meta_grammar()
 		-- A word with no spaces or tags:
 		word		= Cs ( any_except (
 			equals, quotes, regex_delim(), parentheses [1], parentheses [2], space,
-			open, pipe, close, value_sum (p.config.operators), separator
+			open, pipe, close, operator_signs, separator
 		) ^ 1 ),
 	}
 end
 
 --[[
-Rebuild the metagrammar according to p.p.config.
+	Rebuild the metagrammar according to p.p.config.
 --]]
 function p.initialise ()
 	p.meta = make_meta_grammar()
 end
 
 --[[
-Return a function serialising it arguments according to format.
+	Return a function serialising it arguments according to format.
 
-@param string format The format string.
-@return function The serialising function.
+	@param string format The format string.
+	@return function The serialising function.
 --]]
 function p.formatter (format)
 	if not p.meta then
@@ -1058,6 +1075,10 @@ function p.formatter (format)
 	if compiled and type (compiled) == 'table' then
 		return function (...)
 			local values, formatted = {...}, {}
+			-- Special case: formatting nil:
+			if #values == 0 then
+				return tostring (compiled.body (nil))
+			end
 			for i, value in ipairs (values) do
 				-- @todo: different types of format.
 				formatted [i] = tostring (compiled.body (wrap_table (value)))
@@ -1069,13 +1090,12 @@ function p.formatter (format)
 	end
 end
 
-
 --[[
-Serialise arguments according to format.
+	Serialise arguments according to format.
 
-@param string format The format string.
-@param mixed ... The values to serialise.
-@return string The formatted values.
+	@param string format The format string.
+	@param mixed ... The values to serialise.
+	@return string The formatted values.
 --]]
 function p.format (format, ...)
 	local formatter = p.formatter (format)
@@ -1088,4 +1108,3 @@ function p.format (format, ...)
 end
 
 return p
-
