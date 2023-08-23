@@ -170,21 +170,21 @@ local function NT (n, b)
 end
 
 local string = re.string
-local gmatch, match, upper = string.gmatch, string.match, string.upper
+local gmatch, match, upper, lower = string.gmatch, string.match, string.upper, string.lower
 local set = mm.S
 
 local function metagrammar (case_insensitive)
 
 	local string2range = case_insensitive and function (str)
-		local capitalised = upper (str)
-		return capitalised ~= str and mm.R (str) + mm.R (capitalised) or mm.R (str)
+		local uppercase, lowercase = upper (str), lower (str)
+		return uppercase ~= lowercase and mm.R (uppercase) + mm.R (lowercase) or mm.R (str)
 	end or mm.R
 
 	local Range = mm.Cs(any * (m.P'-' / '') * (any - ']')) / string2range
 
 	local add_capital = case_insensitive and function (char)
-		local capitalised = upper (char)
-		return capitalised ~= char and set (char .. capitalised) or char
+		local uppercase, lowercase = upper (char), lower (char)
+		return uppercase ~= lowercase and set (uppercase .. lowercase) or char
 	end or function (char)
 		return char
 	end
@@ -199,8 +199,8 @@ local function metagrammar (case_insensitive)
 	local string2pattern = case_insensitive and function (str)
 		local pattern = start
 		for char in gmatch (str, '.') do
-			local capitalised = upper (char)
-			local char = char ~= capitalised and set (char .. capitalised) or char
+			local uppercase, lowercase = upper (char), lower (char)
+			local char = uppercase ~= lowercase and set (uppercase .. lowercase) or char
 			pattern = pattern * char
 		end
 		return pattern

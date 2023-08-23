@@ -160,7 +160,7 @@ local function wrap_table (var, name, parent, serialised)
 		= config.key, config.self, config.parent, config.unused
 	
 	local var_serialised = serialised and tostring (serialised) or var and tostring (var) or nil
-	local len = #var --type (var) == 'table' and #var or 0
+	local len = #var
 
 	-- For keys not used by the format:
 	local unused = {}
@@ -201,7 +201,7 @@ local function wrap_table (var, name, parent, serialised)
 			if key == unused_selector then
 				-- a table of unused items:			
 				item = {}
-				for unused_key, _ in --[[ordered_]]pairs (unused) do
+				for unused_key, _ in pairs (unused) do
 					item [unused_key] = rawget (var, unused_key)
 				end
 			elseif key == key_selector then
@@ -362,7 +362,6 @@ end
 local function regex (flavour)
 	local lib = load_library ('rex_' .. flavour)
 	if not lib then
-		print ('In regex. ' .. dump (flavour) .. ' not found')
 		return nil
 	end
 	
@@ -435,20 +434,21 @@ local function lua_pattern (expr, flags)
 	local string = p.config.string
 	local find, gsub, lower, upper = string.find, string.gsub, string.lower, string.upper
 	local fillers = p.config.fillers
-	local condense, flags = cut_flag (flags, p.config.condense)
-	local case_insensitive, flags = cut_flag (flags, 'i')	
-	if case_insensitive then
-		expr = gsub (expr, '(%%?)(%a)', function (percent, letter)
-			if percent == '%' then
-				return '%' .. letter
-			else
-				return '[' .. upper (letter) .. lower (letter) .. ']'
-			end
-		end)
+	local condense_flag, flags = cut_flag (flags, p.config.condense)
+	local case_insensitive, flags = cut_flag (flags, 'i')
+	local expr = case_insensitive and lower (expr) or expr
+	local condense = condense_flag and function (str)
+		return gsub (str, fillers, '')
+	end or function (str)
+		return str
+	end
+	local normalise = case_insensitive and function (str)
+		return lower (str)
+	end or function (str)
+		return str
 	end
 	return string_iterator (function (str, offset)
-		local str = condense and gsub (str, fillers, '') or str
-		return find (str, expr, offset)
+		return find (normalise (condense (str)), expr, offset) -- @TODO: denormalise captures.
 	end)
 end
 
@@ -494,7 +494,7 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 	-- Generic case: filtering values or filtering keys with a regular expression:
 	return function (tbl)
 		return wrap (function ()
-			for key, value in --[[ordered_]]pairs (tbl or {}) do
+			for key, value in pairs (tbl or {}) do
 				local iterated_string = iterate_value and value or key
 				for match, captures in string_iterator (iterated_string) do
 					-- @todo: save match and captures somewhere in tbl (not tbl[key]).
