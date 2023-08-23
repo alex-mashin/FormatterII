@@ -30,7 +30,7 @@ local p = {
 		},
 		ipairs		= '#',			-- ipairs() selector.
 		pairs		= '$',			-- pairs() selector.
-		regex		= 'pcre',		-- the default regular expression flavour.
+		regex		= 'pcre2',		-- the default regular expression flavour.
 		re			= 'lualibs/re'	-- path to re Lua library.
 	},
 	VERSION	= '0.2'
@@ -243,6 +243,23 @@ local function wrap_table (var, name, parent, serialised)
 end
 
 --[[
+	Unwrap table wrapped by 'wrap_table' to pass to user-supplied functions.
+	
+	@param table tbl The wrapped table.
+	@return table The unwrapped table.
+--]]
+local function unwrap_table (wrapped)
+	if type (wrapped) ~= 'table' or not rawget (wrapped, '__wrapped') then
+		return wrapped
+	end
+	local unwrapped = {}
+	for key, value in pairs (wrapped) do
+		unwrapped [unwrap_table (key)] = unwrap_table (value)
+	end
+	return unwrapped
+end
+	
+--[[
 	Merge tables.
 		
 	@param table ... Tables to merge.
@@ -345,6 +362,7 @@ end
 local function regex (flavour)
 	local lib = load_library ('rex_' .. flavour)
 	if not lib then
+		print ('In regex. ' .. dump (flavour) .. ' not found')
 		return nil
 	end
 	
@@ -387,14 +405,13 @@ local function re (expr, flags)
 	local fillers = p.config.fillers
 	local condense, flags = cut_flag (flags, p.config.condense)
 	local case_insensitive, flags = cut_flag (flags, 'i')
-	local valid, compiled = pcall (compile_re, expr, {}, not case_insensitive)
+	local valid, compiled = pcall (compile_re, expr, {}, case_insensitive)
 	if not valid then
 		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile')
 	end
 	compiled = Cp() * Ct (compiled) * Cp()
 	return string_iterator (function (str, offset)
 		local str = condense and gsub (str, fillers, '') or str
-		-- @todo: some flags.
 		local start, matches, finish = compiled:match (str, offset)
 		local captures
 		if matches and type (matches [2]) == 'number' then
@@ -518,10 +535,12 @@ local function function2table_iterator (name, ...)
 		local resolved = {}
 		for _, param_pair in ipairs (params) do
 			local param = param_pair.body
-			resolved [#resolved + 1] = type (param) == 'function' and param (tbl) or param -- can be format or a constant string.
+			-- can be format or a constant string:
+			resolved [#resolved + 1] = try_tonumber (type (param) == 'function' and param (tbl) or param)
 		end
-		resolved [#resolved + 1] = tbl
-		local results = { func (unpack (resolved), tbl) }
+		local unwrapped = unwrap_table (tbl)
+		resolved [#resolved + 1] = unwrapped
+		local results = { func (unpack (resolved), unwrapped) }
 		return wrap (function ()
 			for _, result in ipairs (results) do
 				yield (name, result, tbl)
@@ -908,29 +927,27 @@ end
 	@return userdata LPEG for quoted selectors.
 --]]
 local function quoted_selector ()
-	-- '', "", re'', re"", pcre'', pcre"", lua'', lua"", //, re//, pcre//, lua//:
-	local selectors = {
-		[quotes] = {
-			re		= re,
-			lua		= lua_pattern,
-			gnu	 	= regex 'gnu',
-			onig	= regex 'onig',
-			posix	= regex 'posix',
-			pcre	= regex 'pcre',
-			tre 	= regex 'tre',
-			['']	= exactly
-		},
-		[regex_delim ()] = {
-			re		= re,
-			lua		= lua_pattern,
-			gnu	 	= regex 'gnu',
-			onig	= regex 'onig',
-			posix	= regex 'posix',
-			pcre	= regex 'pcre',
-			tre 	= regex 'tre',
-			['']	= regex (p.config.regex)
-		}
+	-- '', "", re'', re"", pcre'', pcre"", pcre2'', pcre2"", lua'', lua"", //, re//, pcre//, lua//:
+	local flavours = {
+		re		= re,
+		lua		= lua_pattern,
+		gnu	 	= regex 'gnu',
+		onig	= regex 'onig',
+		posix	= regex 'posix',
+		pcre	= regex 'pcre',
+		pcre2	= regex 'pcre2',
+		tre 	= regex 'tre',
 	}
+	local delimiter = regex_delim ()
+	local selectors = {
+		[quotes]	= { [''] = exactly },
+		[delimiter]	= { [''] = regex (p.config.regex) }
+	}
+	for flavour, pattern in pairs (flavours) do
+		selectors [quotes] [flavour] = pattern
+		selectors [delimiter] [flavour] = pattern
+	end
+
 	local quoted_selectors = never
 	local flag = regex_flag()
 	for delimiter, prefixes in pairs (selectors) do

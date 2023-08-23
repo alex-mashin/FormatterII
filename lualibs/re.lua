@@ -47,18 +47,15 @@ local re = {
 -- No more global accesses after this point
 _ENV = nil	 -- does no harm in Lua 5.1
 
-
+-- @TODO: multibyte characters.
 local any, start = m.P (1), m.P (true)
-
 
 -- Pre-defined names
 local Predef = { nl = m.P"\n" }
 
-
 local mem
 local fmem
 local gmem
-
 
 local function updatelocale ()
   mm.locale(Predef)
@@ -91,13 +88,9 @@ local function updatelocale ()
   setmetatable(gmem, mt)
 end
 
-
 updatelocale()
 
-
-
 local I = m.P(function (s,i) print(i, s:sub(1, i-1)); return i end)
-
 
 local function patt_error (s, i)
   local msg = (#s < i + 20) and s:sub(i)
@@ -122,7 +115,6 @@ local function equalcap (s, i, c)
   if s:sub(i, e - 1) == c then return e else return nil end
 end
 
-
 local S = (Predef.space + "--" * (any - Predef.nl)^0)^0
 
 local name = m.R("AZ", "az", "__") * m.R("AZ", "az", "__", "09")^0
@@ -133,10 +125,8 @@ local seq_follow = m.P"/" + ")" + "}" + ":}" + "~}" + "|}" + "`}" + (name * arro
 
 name = m.C(name)
 
-
 -- a defined name only have meaning in a given environment
 local Def = name * m.Carg(1)
-
 
 local function getdef (id, defs)
   local c = defs and defs[id]
@@ -150,40 +140,17 @@ local function defwithfunc (f)
   return m.Cg(Def / getdef * m.Cc(f))
 end
 
-
 local num = m.C(m.R"09"^1) * S / tonumber
 
 local String = "'" * m.C((any - "'")^0) * "'" +
 			   '"' * m.C((any - '"')^0) * '"'
 
-
-local defined = "%" * Def / function (c,Defs)
-  local cat =  Defs and Defs[c] or Predef[c]
-  if not cat then error ("name '" .. c .. "' undefined") end
-  return cat
+local defined = "%" * Def / function (c, Defs)
+	local cat =  Defs and Defs [c] or Predef [c]
+	if not cat then error ("name '" .. c .. "' undefined") end
+	return cat
 end
-
-local Range = m.Cs(any * (m.P"-"/"") * (any - "]")) / mm.R
-
-local item = (defined + Range + m.C(any)) / m.P
-
--- % on userdata does nt seem to work in this context, even with a metatable.
--- Therefore, falling back to lpeg.Cf.
---[[
-local Class =
-	"["
-  * (m.C(m.P"^"^-1))	-- optional complement symbol
-  * (item * ((item % mt.__add) - "]")^0) /
-						  function (c, p) return c == "^" and any - p or p end
-  * "]"
---]]
-local Class =
-	"["
-  * (m.C(m.P"^"^-1))	-- optional complement symbol
-  * m.Cf(item * (item - "]")^0, mt.__add) /
-						  function (c, p) return c == "^" and any - p or p end
-  * "]"
-
+	
 local function adddef (t, k, exp)
   if t[k] then
 	error("'"..k.."' already defined as a rule")
@@ -195,7 +162,6 @@ end
 
 local function firstdef (n, r) return adddef({n}, n, r) end
 
-
 local function NT (n, b)
   if not b then
 	error("rule '"..n.."' used outside a grammar")
@@ -203,23 +169,43 @@ local function NT (n, b)
   end
 end
 
-
 local string = re.string
 local gmatch, match, upper = string.gmatch, string.match, string.upper
 local set = mm.S
 
-local function metagrammar (case_sensitive)
-	local make_pattern_from_string = case_sensitive and function (str)
-		return mm.P (str)
-	end or function (str)
+local function metagrammar (case_insensitive)
+
+	local string2range = case_insensitive and function (str)
+		local capitalised = upper (str)
+		return capitalised ~= str and mm.R (str) + mm.R (capitalised) or mm.R (str)
+	end or mm.R
+
+	local Range = mm.Cs(any * (m.P'-' / '') * (any - ']')) / string2range
+
+	local add_capital = case_insensitive and function (char)
+		local capitalised = upper (char)
+		return capitalised ~= char and set (char .. capitalised) or char
+	end or function (char)
+		return char
+	end
+	
+	local item = (defined + Range + any / add_capital ) / m.P
+	
+	local Class = '[' * (m.C (m.P'^' ^ -1))	-- optional complement symbol.
+				* m.Cf (item * (item - ']') ^ 0, mt.__add) /
+					function (c, p) return c == '^' and any - p or p end
+				* ']'
+	
+	local string2pattern = case_insensitive and function (str)
 		local pattern = start
 		for char in gmatch (str, '.') do
 			local capitalised = upper (char)
-			pattern = pattern * (char ~= capitalised and set (char .. capitalised) or char)
+			local char = char ~= capitalised and set (char .. capitalised) or char
+			pattern = pattern * char
 		end
 		return pattern
-	end					
-
+	end or mm.P
+	
 	local exp = m.P{ "Exp",
 	  Exp = S * ( m.V"Grammar"
 			-- % on userdata does nt seem to work in this context, even with a metatable.
@@ -260,7 +246,7 @@ local function metagrammar (case_sensitive)
 			) * S
 		)^0, function (a,b,f) return f(a,b) end );
 	  Primary = "(" * m.V"Exp" * ")"
-				+ String / make_pattern_from_string
+				+ String / string2pattern
 				+ Class
 				+ defined
 				+ "{:" * (name * ":" + m.Cc(nil)) * m.V"Exp" * ":}" /
@@ -288,9 +274,9 @@ local function metagrammar (case_sensitive)
 end
 
 
-local function compile (p, defs, case_sensitive)
+local function compile (p, defs, case_insensitive)
 	if mm.type(p) == "pattern" then return p end   -- already compiled
-	local cp = metagrammar (case_sensitive):match (p, 1, defs)
+	local cp = metagrammar (case_insensitive):match (p, 1, defs)
 	if not cp then error("incorrect pattern", 3) end
 	return cp
 end

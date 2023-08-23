@@ -5,14 +5,14 @@
 *FormatterII* is a Lua table formatting tool.
 
 ## Requirements
-- Lua 5.1 and 5.2, very limited support (no regular expressions except native Lua) for Lua 5.3,
+- Lua 5.1, 5.2 or LuaJIT; slightly limited support (no pcre-flavoured regular expressions; but pcre2 is enabled) for Lua 5.3 and 5.4,
  - `coroutine` table ought to be available,
 - Lua [LPEG](http://www.inf.puc-rio.br/~roberto/lpeg/) library,
-- [lrexlib](https://github.com/rrthomas/lrexlib) (optional).
+- [lrexlib](https://github.com/rrthomas/lrexlib) (optional; needed for GNU, Oniguruma, POSIX, PCRE, PCRE2 and Tre regular expressions).
 
 ## Usage
 - `local formatter = require 'FormatterII'` — require library,
-- `formatter.format (format_string, ...)` — format ... values according to `format_string`,
+- `formatter.format (format_string, ...)` — format 	`...` values according to `format_string`,
 - `local func = formatter.format (format_string); local formatted = func (table)` — create a function `func` formatting its argument according to `format_string` and then call it,
 - `local config = formatter.config` — get *FormatterII* configuration (mainly, syntax),
 - `formatter.config.open, formatter.config.close = '『', '』'` — use Chinese quotation marks for macro delimiters instead of `<<` and `>>`,
@@ -43,7 +43,8 @@ A selector can be:
   - `<<>>`, meaning the formatted value itself and not changing the context,
   - `<<'key'…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
   - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
-  - `<</regular extression/…>>`, assuming that the default flavour of regular expressions is Perl-compatible (`formatter.config.regex = 'pcre'`), or `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Perl-compatible regular expression, if available,
+  - `<</regular extression/…>>`, assuming that the default flavour of regular expressions is Perl-compatible v2 (`formatter.config.regex = 'pcre2'`), or `<<pcre2/regular extression/…>>` or `<<pcre2'regular expression'…>>` — a Perl-compatible regular expression v2, if available,
+  - `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Rerl-compatible regular expression v1, if available,
   - `<<gnu/regular extression/…>>` or `<<gnu'regular expression'…>>` — a GNU-compatible regular expression, if available,
   - `<<onig/regular extression/…>>` or `<<onig'regular expression'…>>` — an Oniguruma regular expression, if available,
   - `<<posix/regular extression/…>>` or `<<posix'regular expression'…>>` — a POSIX regular expression, if available,
@@ -99,7 +100,7 @@ formatter.config = {
 	},
 	ipairs		= '#',			-- ipairs() selector.
 	pairs		= '$',			-- pairs() selector.
-	regex		= 'pcre'		-- the default regular expression flavour.
+	regex		= 'pcre2'		-- the default regular expression flavour.
 }
 ```
 
@@ -193,10 +194,10 @@ After changing configuration, call `formatter.initialise()`.
 | /PCRE/_ | `<</^key(?<no>\d+)$/_>>` | Value |
 | /PCRE/i_ | `<</^key(?<no>\d+)$/i_>>` | Value |
 | /PCRE/ and @ | `<</^key(?<no>\d+)$/\|<<@>>: <<no>> - <<>>, >>` | key1: 1 - Value1, key3: 3 - Value3, key2: 2 - Value2,  |
-| pcre"PCRE" | `<<pcre"^key(?<no>\d+)$">>` | Value |
-| pcre/PCRE/ | `<<pcre/^key(?<no>\d+)$/>>` | Value |
+| pcre"PCRE" | `<<pcre2"^key(?<no>\d+)$">>` | Value |
+| pcre/PCRE/ | `<<pcre2/^key(?<no>\d+)$/>>` | Value |
 | Absent PCRE key | `<</^key(?<no>\d+)$/>>` | nil |
-| Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre regular expression "^key(?<no>\d+$" with flags "" does not compile |
+| Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre2 regular expression "^key(?<no>\d+$" with flags "" does not compile |
 | Re key, re// | `<<re/"key" { [0-9]+ }/>>` | Value |
 | Re key, re'' | `<<re'"key" { [0-9]+ }'>>` | Value |
 | Re key, re'', case-insensitive | `<<re'"key" { [0-9]+ }'i>>` | Value |
