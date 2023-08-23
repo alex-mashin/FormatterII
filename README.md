@@ -41,7 +41,7 @@ Macro syntax can be:
 A selector can be:
 - *simple*. The new context will be created by captures. Below are subypes of simple selectors:
   - `<<>>`, meaning the formatted value itself and not changing the context,
-  - `<<key…>>` or <<'key'…>>` or `<<"key"…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`. In particuar:
+  - `<<key…>>` or `<<'key'…>>` or `<<"key"…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`. In particuar:
     - `<<__unused>>` is a table of values that were never output,
     - `<<..>>` is the parent table.
     - `<<@>>` is the key of the currently selected value in the parent table.
@@ -59,7 +59,7 @@ A selector can be:
       - `<` — back assertion (`lpeg.B`),
       - ``{` `}`` — constant capture (`lpeg.Cc`),
       - `{# #}` — argument capture (`lpeg.Carg`),
-      - optional `i` flag for case insensitive matchingy;
+      - optional `i` flag for case insensitive matching;
   - *iterating*:
     - `<<#…>>` for `ipairs()`,
     - `<<$…>>` for `pairs()` but ordered by keys;
