@@ -39,15 +39,15 @@ Macro syntax can be:
 
 ### Selector
 A selector can be:
-- *simple*. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures. Below are subypes of simple selectors. `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters:
+- *simple*. The new context will be created by captures. Below are subypes of simple selectors:
   - `<<>>`, meaning the formatted value itself and not changing the context,
-  - <<key…>>` or <<'key'…>>` or `<<"key"…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`,
-    - in particluar, `<<__unused>>` is a table of values that were never output,
+  - `<<key…>>` or <<'key'…>>` or `<<"key"…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`. In particuar:
+    - `<<__unused>>` is a table of values that were never output,
     - `<<..>>` is the parent table.
     - `<<@>>` is the key of the currently selected value in the parent table.
-  - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
-  - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with [lrexlib](https://github.com/rrthomas/lrexlib). The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour:
-    - `<</regular extression/…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Any pair of matching non-space non-alphanumeric characters can delimit a default flavour regular expression, except characters that have a special meaning in the selector syntax (`'"().*+,\\|@`),
+  - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`,
+  - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
+    - `<</regular extression/…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Any pair of matching non-space non-alphanumeric characters can delimit a default flavour regular expression, except characters that have a special meaning in the selector syntax (`'"().*+,\|@`),
     - `<<pcre2/regular extression/…>>` or `<<pcre2'regular expression'…>>` or `<<pcre2"regular expression"…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), if available,
     - `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` or `<<pcre"regular expression"…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), if available,
     - `<<gnu/regular extression/…>>` or `<<gnu'regular expression'…>>` or `<<gnu"regular expression"…>>` — an extended [GNU-compatible regular expression](https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html), if available,
