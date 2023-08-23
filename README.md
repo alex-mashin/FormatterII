@@ -27,14 +27,14 @@ Any format string has a *context*: the outermost macro's context is the first ar
 
 ### Macro
 Macro syntax can be:
-- `<<selector|format string 1|format string 2|…|format string n>>` — each selector instance will be formatted according to the first `format string` that does not return `nil`. This can be used to define fallbacks for absent values,
+- `<<selector|format string 1|format string 2|…|format string n>>` — each value yielded by `selector` will be formatted according to the first `format string` that does not return `nil`. This can be used to define fallbacks for absent values,
 - `<<|format string 1|format string 2|…|format string n>>` — no selector means that the value itself rather than its fields will be output,
 - `<<selector>>` — no format means that `selector` values will be output as they are,
 - `<<>>` — the current value will be output as is,
-- `<<,>>` — the default separator (`p.config.separator = ', '`) will be output, if required,
+- `<<,>>` — the default separator (`p.config.separator = ', '`) will be output between the formatted values yielded by the selector of the containing macro,
 - `<<,|; >>` — a custom separator (`; ` in this case) will be output, if required,
 - `<<?selector…>>` (*optional macro*) — if `selector` yields nothing, the macro will not fail, producing an empty string instead, and not causing the enclosing format string to fail,
-- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>` will fail, if even the format is constant,
+- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>` will fail, if even the format containing `<<!>>` is constant,
 - `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail. This can be used to prevent repetition of values (emulate a unique selector).
 
 ### Selector
@@ -42,6 +42,7 @@ A selector can be:
 - simple. Lua and Re expression support `i` flag for case-insensitive matching. All regular expression flavours support the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored. The new context will be created by captures. Below are subypes of simple selectors. `'…'` means `'…'` or `"…"`; `/…/` means text in any legitimate regular expression delimiters:
   - `<<>>`, meaning the formatted value itself and not changing the context,
   - `<<'key'…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables,
+    - in particluar, `__unused` is a table of values that were never output,
   - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables,
   - `<</regular extression/…>>`, assuming that the default flavour of regular expressions is Perl-compatible v2 (`formatter.config.regex = 'pcre2'`), or `<<pcre2/regular extression/…>>` or `<<pcre2'regular expression'…>>` — a Perl-compatible regular expression v2, if available,
   - `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` — a Rerl-compatible regular expression v1, if available,
