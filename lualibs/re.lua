@@ -5,7 +5,8 @@
 	Modified initially for traditio.wiki and then for SummaryII by Alexander Mashin:
 		* <		-- back assertion	(lpeg.B),
 		* {` `}	-- constant capture	(lpeg.Cc),
-		* {# #}	-- argument capture	(lpeg.Carg).
+		* {# #}	-- argument capture	(lpeg.Carg),
+		* case_insensitive parametre for compile().
 --]]
 
 --
@@ -169,6 +170,10 @@ local function NT (n, b)
   end
 end
 
+local function do_nothing (...)
+	return ...
+end
+
 local string = re.string
 local gmatch, match, upper, lower = string.gmatch, string.match, string.upper, string.lower
 local set = mm.S
@@ -185,9 +190,7 @@ local function metagrammar (case_insensitive)
 	local add_capital = case_insensitive and function (char)
 		local uppercase, lowercase = upper (char), lower (char)
 		return uppercase ~= lowercase and set (uppercase .. lowercase) or char
-	end or function (char)
-		return char
-	end
+	end or do_nothing
 	
 	local item = (defined + Range + any / add_capital ) / m.P
 	
