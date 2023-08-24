@@ -2,7 +2,7 @@
 
 *Version 0.2*
 
-*FormatterII* is a Lua table formatting tool.
+*FormatterII* is a Lua table formatting tool, in other words, a [template engine](https://en.wikipedia.org/wiki/Template_processor).
 
 ## Requirements
 - Lua 5.1, 5.2 or LuaJIT; slightly limited support (no pcre-flavoured regular expressions; but pcre2 is enabled) for Lua 5.3 and 5.4,
@@ -39,7 +39,7 @@ Macro syntax can be:
 
 ### Selector
 A selector can be:
-- *simple*. The new context will be created by captures. Below are subypes of simple selectors:
+- *simple*. The new context will be created by captures. Below are subtypes of simple selectors:
   - `<<>>`, meaning the formatted value itself and not changing the context,
   - `<<key…>>` or `<<'key'…>>` or `<<"key"…>>` — a key to the table. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`. In particular:
     - `<<__unused>>` is a table of values that were never output,
@@ -47,7 +47,7 @@ A selector can be:
     - `<<@>>` is the key of the currently selected value in the parent table.
   - `<<dynamic key…>>` — a key to the table that can include macros. If a key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`,
   - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. Any pair of matching non-space non-alphanumeric characters can delimit a regular expression, except characters that have a special meaning in the selector syntax (`().*+,\|@`); and except quotes (`'"`), if regular expression flavour is not specified and the default on is to be used (a quoted string without a flavour prefix will be treated as a plain table key). Below, `//` are used as an ecample of regular expression delimiters. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. All regular expression flavours support `i` flag for case-insensitive matching and a the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
-    - `<</regular extression/…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available,
+    - `<</regular extression/…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Quotes `'"` cannot be used to delimit a regular expression of the default flavour,
     - `<<pcre2/regular extression/…>>` or `<<pcre2'regular expression'…>>` or `<<pcre2"regular expression"…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), if available,
     - `<<pcre/regular extression/…>>` or `<<pcre'regular expression'…>>` or `<<pcre"regular expression"…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), if available,
     - `<<gnu/regular extression/…>>` or `<<gnu'regular expression'…>>` or `<<gnu"regular expression"…>>` — an extended [GNU-compatible regular expression](https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html), if available,
@@ -63,7 +63,7 @@ A selector can be:
   - *iterating*:
     - `<<#…>>` for `ipairs()`,
     - `<<$…>>` for `pairs()` but ordered by keys;
-  - *function*: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value and `param1`, …, `paramn`, and producing the returned value of the function;
+  - *function*: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value, `param1`, …, `paramn`, and finally, the whole table, and producing the returned value of the function;
 - *composite*, ordered by priority, from highest to lowest (order of composition can be changed by parentheses; priorities and operators are configurable via `formatter.config.operators`):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
   - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
