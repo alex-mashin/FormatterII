@@ -123,6 +123,7 @@ formatter.config = {
 	ipairs		= '#',			-- ipairs() selector.
 	pairs		= '$',			-- pairs() selector.
 	regex		= 'pcre2',		-- the default regular expression flavour.
+	regex_jit	= true,			-- load libraries from lrexlib at first use.
 	re		= { 'lualibs/re', 'Module:Re' }
 						-- paths to re Lua library.
 }
