@@ -5,7 +5,7 @@
 *FormatterII* is a Lua table querying and formatting tool, in other words, a [template engine](https://en.wikipedia.org/wiki/Template_processor).
 
 ## Features
-*FormatII* can:
+*FormatterII* can:
 - query table fields fuzzily, using various regular expressions to filter table fields and values, so that:
   - it is not necessary to know table keys up to capitalisation, spaces, hyphens and underscores and
   - item values can be validated before rendering,
