@@ -329,6 +329,9 @@ local function exactly (value)
 	end), value
 end
 
+-- Some auxilliary functions for matching patterns:
+local gsub = string.gsub
+
 --[[
 	Extract a flag from a string of flags.
 
@@ -339,7 +342,7 @@ end
 --]]
 local function cut_flag (flags, flag)
 	local string = p.config.string
-	local find, gsub = string.find, string.gsub
+	local find = string.find
 	if not flags or flags == '' then
 		return flags
 	end
@@ -350,6 +353,25 @@ local function cut_flag (flags, flag)
 		flags = gsub (flags, flag, '')
 	end
 	return found, flags
+end
+
+--[[
+	This function simply returns it arguments.
+	@param mixed ...
+	@return mixed
+--]]
+local function do_nothing (...)
+	return ...
+end
+
+local fillers = p.config.fillers
+--[[
+	This function removes spaces, hyphens and minuses.
+	@param string str
+	@return str
+--]]
+local function condense (str)
+	return gsub (str, fillers, '')
 end
 
 --[[
@@ -366,9 +388,9 @@ local function regex (flavour)
 	end
 	
 	local new_regex = lib.new
-	local gsub, fillers = p.config.string.gsub, p.config.fillers
 	return function (expr, flags)
-		local condense, flags = cut_flag (flags, p.config.condense)
+		local condense_flag, flags = cut_flag (flags, p.config.condense)
+		local condense = condense_flag and condense or do_nothing
 		local valid, compiled = pcall (new_regex, expr, flags)
 		if not valid then
 			return error_msg (
@@ -377,7 +399,7 @@ local function regex (flavour)
 			)
 		end
 		return string_iterator (function (str, offset)
-			local str = condense and gsub (str, fillers, '') or str
+			local str = condense (str)
 			return compiled:tfind (str, offset)
 		end)
 	end
@@ -400,9 +422,9 @@ local compile_re = re_lib.compile
 --]]
 local function re (expr, flags)
 	local string = p.config.string
-	local sub, gsub, upper = string.sub, string.gsub, string.upper
-	local fillers = p.config.fillers
-	local condense, flags = cut_flag (flags, p.config.condense)
+	local sub, upper = string.sub, string.upper
+	local condense_flag, flags = cut_flag (flags, p.config.condense)
+	local condense = condense_flag and condense or do_nothing
 	local case_insensitive, flags = cut_flag (flags, 'i')
 	local valid, compiled = pcall (compile_re, expr, {}, case_insensitive)
 	if not valid then
@@ -410,7 +432,7 @@ local function re (expr, flags)
 	end
 	compiled = Cp() * Ct (compiled) * Cp()
 	return string_iterator (function (str, offset)
-		local str = condense and gsub (str, fillers, '') or str
+		local str = condense (str)
 		local start, matches, finish = compiled:match (str, offset)
 		local captures
 		if matches and type (matches [2]) == 'number' then
@@ -429,24 +451,14 @@ end
 	@return function A comparator function accepting a string and an offset
 		and returning an offset and end position of the match and a table of captures.
 --]]
--- @todo: improve.
 local function lua_pattern (expr, flags)
 	local string = p.config.string
-	local find, gsub, lower, upper = string.find, string.gsub, string.lower, string.upper
-	local fillers = p.config.fillers
+	local find, lower, upper = string.find, string.lower, string.upper
 	local condense_flag, flags = cut_flag (flags, p.config.condense)
+	local condense = condense_flag and condense or do_nothing
 	local case_insensitive, flags = cut_flag (flags, 'i')
 	local expr = case_insensitive and lower (expr) or expr
-	local condense = condense_flag and function (str)
-		return gsub (str, fillers, '')
-	end or function (str)
-		return str
-	end
-	local normalise = case_insensitive and function (str)
-		return lower (str)
-	end or function (str)
-		return str
-	end
+	local normalise = case_insensitive and lower or do_nothing
 	return string_iterator (function (str, offset)
 		return find (normalise (condense (str)), expr, offset) -- @TODO: denormalise captures.
 	end)
