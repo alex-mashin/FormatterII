@@ -8,15 +8,15 @@
 *FormatterII* can:
 - query table fields fuzzily, using various regular expressions to filter table fields and values, so that:
   - it is not necessary to know table keys up to capitalisation, spaces, hyphens and underscores and
-  - item values can be validated before rendering,
+  - item values can be validated before output,
 - parse strings for further re-rendering,
 - handle missing data gracefully, avoiding rendering unnecessary headings for empty lists,
 - avoid dangling commas (or other separators),
-- keep track of data supplied but never rendered,
-- be flexibly configured, changing the very syntax of the format sring,
-- be run in MediaWiki environment, provided that coroutines, *LPEG* and, optionally, regular expression engines from *lrexlib* are available (see [my fork](https://github.com/alex-mashin/php-luasandbox) of *luasandbox* extension for PHP).
+- keep track of data supplied but never output,
+- be flexibly configured, changing the very syntax of the format string,
+- be run in *MediaWiki* *Scribunto* environment, provided that coroutines, *LPEG* and, optionally, regular expression engines from *lrexlib* are available (see [my fork](https://github.com/alex-mashin/php-luasandbox) of *luasandbox* extension for PHP).
 
-*FormatterII*'s syntax of format strings aims to be concise and natural, as similar to the actual rendered string, and with as little boilerplate code, as possible; yet flexible and powerful.
+*FormatterII*'s syntax of format strings aims to be concise and natural, as similar to the resulting formatted string, and with as little boilerplate code, as possible; yet flexible and powerful.
 
 *FormatterII* is fully declarative. The only way to run arbitrary Lua code is to add a member function to the formatted table and invoke it from the template.
 
