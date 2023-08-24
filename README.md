@@ -106,7 +106,9 @@ formatter.config = {
 	},
 	ipairs		= '#',			-- ipairs() selector.
 	pairs		= '$',			-- pairs() selector.
-	regex		= 'pcre2'		-- the default regular expression flavour.
+	regex		= 'pcre2',		-- the default regular expression flavour.
+	re		= { 'lualibs/ru', 'Module:Re' }
+						-- paths to re Lua library.
 }
 ```
 
