@@ -31,8 +31,9 @@ local p = {
 		ipairs		= '#',			-- ipairs() selector.
 		pairs		= '$',			-- pairs() selector.
 		regex		= 'pcre2',		-- the default regular expression flavour.
+		regex_jit	= true,			-- load libraries from lrexlib at first use.
 		re			= { 'lualibs/re', 'Module:Re' }
-									-- paths to re Lua library.
+									-- path to re Lua library.
 	},
 	VERSION	= '0.2'
 }
@@ -376,6 +377,21 @@ local function condense (str)
 end
 
 --[[
+	Return a function that compiles a regular expression supported by lrexlib.
+	@param string flavour Regular expression flavour
+	@return function Regular expression compiler
+--]]
+local function regex_compiler (flavour)
+	local lib = load_library ('rex_' .. flavour)
+	if not lib then
+		return nil
+	end
+	return lib.new
+end
+
+local regex_jit = p.config.regex_jit
+
+--[[
 	Returns a factory of comparator functions accepting a regular expression.
 		
 	@param string flavour Type of regex: pcre, gnu, onig, posix, tre.
@@ -383,15 +399,17 @@ end
 		or nil, if the library is not available.
 --]]
 local function regex (flavour)
-	local lib = load_library ('rex_' .. flavour)
-	if not lib then
-		return nil
-	end
-	
-	local new_regex = lib.new
+	local new_regex = not regex_jit and regex_compiler (flavour) or nil
 	return function (expr, flags)
 		local condense_flag, flags = cut_flag (flags, p.config.condense)
 		local condense = condense_flag and condense or do_nothing
+		if not new_regex then
+			-- late binding.
+			new_regex = regex_compiler (flavour)
+			if not new_regex then
+				return error_msg (flavour .. ' regular expressions are not available' )
+			end
+		end
 		local valid, compiled = pcall (new_regex, expr, flags)
 		if not valid then
 			return error_msg (
