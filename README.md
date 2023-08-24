@@ -2,7 +2,23 @@
 
 *Version 0.2*
 
-*FormatterII* is a Lua table formatting tool, in other words, a [template engine](https://en.wikipedia.org/wiki/Template_processor).
+*FormatterII* is a Lua table querying and formatting tool, in other words, a [template engine](https://en.wikipedia.org/wiki/Template_processor).
+
+## Features
+*FormatII* can:
+- query table fields fuzzily, using various regular expressions to filter table fields and values, so that:
+  - it is not necessary to know table keys up to capitalisation, spaces, hyphens and underscores and
+  - item values can be validated before rendering,
+- parse strings for further re-rendering,
+- handle missing data gracefully, avoiding rendering unnecessary headings for empty lists,
+- avoid dangling commas (or other separators),
+- keep track of data supplied but never rendered,
+- be flexibly configured, changing the very syntax of the format sring,
+- be run in MediaWiki environment, provided that coroutines, *LPEG* and, optionally, regular expression engines from *lrexlib* are available (see [my fork](https://github.com/alex-mashin/php-luasandbox) of *luasandbox* extension for PHP).
+
+*FormatterII*'s syntax of format strings aims to be concise and natural, as similar to the actual rendered string, and with as little boilerplate code, as possible; yet flexible and powerful.
+
+*FormatterII* is fully declarative. The only way to run arbitrary Lua code is to add a member function to the formatted table and invoke it from the template.
 
 ## Requirements
 - Lua 5.1, 5.2 or LuaJIT; slightly limited support (no pcre-flavoured regular expressions; but pcre2 is enabled) for Lua 5.3 and 5.4,
