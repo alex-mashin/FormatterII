@@ -31,7 +31,8 @@ local p = {
 		ipairs		= '#',			-- ipairs() selector.
 		pairs		= '$',			-- pairs() selector.
 		regex		= 'pcre2',		-- the default regular expression flavour.
-		re			= 'lualibs/re'	-- path to re Lua library.
+		re			= { 'lualibs/ru', 'Module:Re' }
+									-- paths to re Lua library.
 	},
 	VERSION	= '0.2'
 }
@@ -408,7 +409,11 @@ end
 -- LPeg's re module:
 local lpeg = load_library 'lpeg'
 local Cp, Ct = lpeg.Cp, lpeg.Ct
-local re_found, re_lib = pcall (require, p.config.re)
+local re_found, re_lib
+for _, path in ipairs (p.config.re) do
+	re_found, re_lib = pcall (require, path)
+	if re_found then break end
+end
 re_lib.string = p.config.string
 local compile_re = re_lib.compile
 
