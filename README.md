@@ -29,7 +29,7 @@
 ## Usage
 - `local formatter = require 'FormatterII'` — require library,
 - `formatter.format (format_string, ...)` — format 	`...` values according to `format_string`,
-- `local func = formatter.format (format_string); local formatted = func (table)` — create a function `func` formatting its argument according to `format_string` and then call it,
+- `local func = formatter.formatter (format_string); local formatted = func (table)` — create a function `func` formatting its argument according to `format_string` and then call it,
 - `local config = formatter.config` — get *FormatterII* configuration (mainly, syntax),
 - `formatter.config.open, formatter.config.close = '『', '』'` — use Chinese quotation marks for macro delimiters instead of `<<` and `>>`,
 - `formatter.config.string = mw.ustring` — replace the standard Lua `string` library with [Scribunto](https://www.mediawiki.org/wiki/Extension:Scribunto)'s `mw.ustring`,
