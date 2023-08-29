@@ -346,7 +346,7 @@ local function cut_flag (flags, flag)
 	local string = p.config.string
 	local find = string.find
 	if not flags or flags == '' then
-		return flags
+		return false, flags
 	end
 	local found = false
 	local _pos = find (flags, flag, 1, true)
@@ -551,7 +551,8 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 	-- Generic case: filtering values or filtering keys with a regular expression:
 	return function (tbl)
 		return wrap (function ()
-			for key, value in pairs (tbl or {}) do
+			local iterated = tbl and (type (tbl) == 'table' and tbl or { tbl }) or {}
+			for key, value in pairs (iterated) do
 				local iterated_string = iterate_value and value or key
 				for match, captures in string_iterator (iterated_string) do
 					-- @todo: save match and captures somewhere in tbl (not tbl[key]).
@@ -749,7 +750,8 @@ local function iterator (func)
 	return function (tbl)
 		return wrap (function ()
 			local numbered = {}
-			for key, item in func (tbl or {}) do
+			local iterated = tbl and (type (tbl) == 'table' and tbl or { tbl }) or {}
+			for key, item in func (iterated) do
 				-- @todo: add parent name?
 				yield (key, item)
 			end
