@@ -389,6 +389,20 @@ local function regex_compiler (flavour)
 	return lib.new
 end
 
+--[[
+	Make a string iterator from a compiled lrexlib regex userdata.
+	@param userdata userdata The compiled regex.
+	@param function preprocessor The function applied to string befor matching it against regex.
+	@return function A comparator function accepting a string and an offset
+		and returning an offset and end position of the match and a table of captures.
+--]]
+local function regex2string_iterator (userdata, preprocessor)
+	return string_iterator (function (str, offset)
+		local str = preprocessor (str)
+		return userdata:tfind (str, offset)
+	end)
+end
+
 local regex_jit = p.config.regex_jit
 
 --[[
@@ -417,10 +431,7 @@ local function regex (flavour)
 			 .. '" with flags "' .. (flags or '') .. '" does not compile'
 			)
 		end
-		return string_iterator (function (str, offset)
-			local str = condense (str)
-			return compiled:tfind (str, offset)
-		end)
+		return regex2string_iterator (compiled, condense)
 	end
 end
 
@@ -434,6 +445,27 @@ for _, path in ipairs (p.config.re) do
 end
 re_lib.string = p.config.string
 local compile_re = re_lib.compile
+
+--[[
+	Make a string iterator from a compiled LPEG userdata.
+	@param userdata userdata The compiled LPEG.
+	@param function preprocessor The function applied to string befor matching it against LPEG.
+	@return function A comparator function accepting a string and an offset
+		and returning an offset and end position of the match and a table of captures.
+--]]
+local function lpeg2string_iterator (userdata, preprocessor)
+	return string_iterator (function (str, offset)
+		local str = preprocessor (str)
+		local start, matches, finish = userdata:match (str, offset)
+		local captures
+		if matches and type (matches [2]) == 'number' then
+			captures = { sub(str, offset, matches [2] - 1) }
+		else
+			captures = matches
+		end
+		return start, start and finish - 1 or nil, captures
+	end)
+end
 
 --[[
 	Make a comparator function from an LPEG Re selector.
@@ -454,17 +486,7 @@ local function re (expr, flags)
 		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile')
 	end
 	compiled = Cp() * Ct (compiled) * Cp()
-	return string_iterator (function (str, offset)
-		local str = condense (str)
-		local start, matches, finish = compiled:match (str, offset)
-		local captures
-		if matches and type (matches [2]) == 'number' then
-			captures = { sub(str, offset, matches [2] - 1) }
-		else
-			captures = matches
-		end
-		return start, start and finish - 1 or nil, captures
-	end)
+	return lpeg2string_iterator (compiled, condense)
 end
 
 --[[
@@ -1021,6 +1043,7 @@ end
 	@return userdata LPEG grammar.
 --]]
 local function make_meta_grammar()
+	local lpeg_type = lpeg.type
 	local conf = p.config
 	local open, pipe, close = P (conf.open), P (conf.pipe), P (conf.close)
 	local unique = P (conf.unique)
@@ -1094,7 +1117,15 @@ local function make_meta_grammar()
 			local formatter = make_formatter (chunks)
 			return function (tbl)
 				local filter = try_tonumber (formatter.body (tbl))
-				return table_iterator (value, exactly (filter)) (tbl)
+				local string_iterator
+				if type (filter) == 'userdata' then
+					string_iterator = lpeg_type (filter) == 'pattern'
+						and lpeg2string_iterator (Cp() * Ct (filter) * Cp(), do_nothing)
+						or regex2string_iterator (filter)
+				else
+					string_iterator = exactly (filter)
+				end
+				return table_iterator (value, string_iterator) (tbl)
 			end
 		end,
 		
