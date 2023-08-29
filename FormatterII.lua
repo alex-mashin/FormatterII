@@ -346,13 +346,16 @@ local function cut_flag (flags, flag)
 	local string = p.config.string
 	local find = string.find
 	if not flags or flags == '' then
-		return false, flags
+		return false, nil
 	end
 	local found = false
 	local _pos = find (flags, flag, 1, true)
 	if _pos then
 		found = true
 		flags = gsub (flags, flag, '')
+	end
+	if flags == '' then
+		flags = nil
 	end
 	return found, flags
 end
