@@ -1046,7 +1046,7 @@ end
 	@return userdata LPEG for quoted selectors.
 --]]
 local function quoted_selector ()
-	-- '', "", re'', re"", pcre'', pcre"", pcre2'', pcre2"", lua'', lua"", //, re//, pcre//, lua//:
+	-- '', "", re'', re"", pcre'', pcre"", pcre2'', pcre2"", lua'', lua"", //, re//, pcre//, pcre2//, lua//, etc.:
 	local flavours = {
 		re		= re,
 		lua		= lua_pattern,

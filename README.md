@@ -33,7 +33,7 @@
 - `local config = formatter.config` — get *FormatterII* configuration (mainly, syntax),
 - `formatter.config.open, formatter.config.close = '『', '』'` — use Chinese quotation marks for macro delimiters instead of `<<` and `>>`,
 - `formatter.config.string = mw.ustring` — replace the standard Lua `string` library with [Scribunto](https://www.mediawiki.org/wiki/Extension:Scribunto)'s `mw.ustring`,
-- `formatter.initialise()` — activate changes in FormatterII configuration.
+- `formatter.initialise()` — activate changes in *FormatterII* configuration.
 
 ## Format string syntax
 ### Format string
@@ -50,8 +50,8 @@ Macro syntax can be:
 - `<<,>>` — the default separator (`p.config.separator = ', '`) will be output between the formatted values yielded by the selector of the containing macro,
 - `<<,|; >>` — a custom separator (`; ` in this case) will be output, if required,
 - `<<?selector…>>` (*optional macro*) — if `selector` yields nothing, the macro will not fail, producing an empty string instead, and not causing the enclosing format string to fail,
-- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>` will fail, if even the format containing `<<!>>` is constant,
-- `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail. This can be used to prevent repetition of values (emulate a unique selector).
+- `<<!>>` (*conditional macro*) — if the selector yields nothing, macro containing `<<!>>` will fail, if even the format containing `<<!>>` is constant. If selector yields data, `<<!>>` will display an empty string,
+- `<<!1|format string>>` — if `format string` repeats, macro that contains it will fail. This can be used to prevent repetition of values (emulate a unique selector) (likely to be replaced with a different implementation).
 
 ### Selector
 A selector can be:
@@ -61,22 +61,23 @@ A selector can be:
     - `<<__unused>>` is a table of values that were never output,
     - `<<..>>` is the parent table.
     - `<<@>>` is the key of the currently selected value in the parent table.
-    - `<<@@>>` is the counter of the current row returned by table iterator. It can be used to distinguish table items by some natural order, in which they are expecte.
+    - `<<@@>>` is the counter of the current row returned by table iterator. It can be used to distinguish table items by some natural order, in which they are expected.
   - `<<dynamic key…>>` — a key to the table that can include macros. The corresponding value will be yielded. If the key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`:
     - if the returned value is userdata containing a compiled LPEG pattern or grammar or a regular expression from lrexlib, it will be used as `lpeg/…/` or `flavoured_regex/…/` selector respectively, i.e., the table will be matched against it. This allows to reuse complex LPEG or regex patterns,
-  - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. Any pair of matching non-space non-alphanumeric characters can delimit a regular expression, except characters that have a special meaning in the selector syntax (`().*+,\|@`); and except quotes (`'"`), if regular expression flavour is not specified and the default on is to be used (a quoted string without a flavour prefix will be treated as a plain table key). Below, `//` are used as an ecample of regular expression delimiters. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. All regular expression flavours support `i` flag for case-insensitive matching and a the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
-    - `<</regular expression/…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Quotes `'"` cannot be used to delimit a regular expression of the default flavour,
-    - `<<pcre2/regular expression/…>>` or `<<pcre2'regular expression'…>>` or `<<pcre2"regular expression"…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), if available,
-    - `<<pcre/regular expression/…>>` or `<<pcre'regular expression'…>>` or `<<pcre"regular expression"…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), if available,
-    - `<<gnu/regular expression/…>>` or `<<gnu'regular expression'…>>` or `<<gnu"regular expression"…>>` — an extended [GNU-compatible regular expression](https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html), if available,
-    - `<<onig/regular expression/…>>` or `<<onig'regular expression'…>>` or `<<onig"regular expression"…>>` — an [Oniguruma regular expression](https://github.com/kkos/oniguruma/blob/master/doc/RE), if available, subject to features implemented in *lrexlib*,
-    - `<<posix/regular expression/…>>` or `<<posix'regular expression'…>>` or `<<posix"regular expression"…>>` — an extended [POSIX regular expression](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html), if available,
-    - `<<tre/regular expression/…>>` or `<<tre'regular expression'…>>` or `<<tre"regular expression"…>>` — an extended [TRE regular expression](https://github.com/laurikari/tre), if available, subject to features implemented in *lrexlib*,
-    - `<<lua/regular expression/…>>` or `<<lua'regular expression'…>>` or `<<lua"regular expression"…>>` — a [standard Lua regular expression](https://www.lua.org/pil/20.2.html),
-    - `<<re/regular expression/…>>` or `<<re'regular expression'…>>` or `<<re"regular expression"…>>` — an LPEG [Re](http://www.inf.puc-rio.br/~roberto/lpeg/re.html) "regular expression", with some additional features:
+  - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. Any pair of matching non-space non-alphanumeric characters can delimit a regular expression, except characters that have a special meaning in the selector syntax (`().:*+-,\|@`); and except quotes (`'"`), if regular expression flavour is not specified, the default one is to be used; but a quoted string without a flavour prefix will be treated as a plain table key. Below, `//` are used as an example of regular expression delimiters. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. All regular expression flavours support `i` flag for case-insensitive matching and a the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
+    - `<</regular expression/flags…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Quotes `'"` cannot be used to delimit a regular expression of the default flavour,
+    - `<<pcre2/regular expression/flags…>>` or `<<pcre2'regular expression'flags…>>` or `<<pcre2"regular expression"flags…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), if available,
+    - `<<pcre/regular expression/flags…>>` or `<<pcre'regular expression'flags…>>` or `<<pcre"regular expression"flags…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), if available,
+    - `<<gnu/regular expression/flags…>>` or `<<gnu'regular expression'flags…>>` or `<<gnu"regular expression"flags…>>` — an extended [GNU-compatible regular expression](https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html), if available,
+    - `<<onig/regular expression/flags…>>` or `<<onig'regular expression'flags…>>` or `<<onig"regular expression"flags…>>` — an [Oniguruma regular expression](https://github.com/kkos/oniguruma/blob/master/doc/RE), if available, subject to features implemented in *lrexlib*,
+    - `<<posix/regular expression/flags…>>` or `<<posix'regular expression'flags…>>` or `<<posix"regular expression"flags…>>` — an extended [POSIX regular expression](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html), if available,
+    - `<<tre/regular expression/flags…>>` or `<<tre'regular expression'flags…>>` or `<<tre"regular expression"flags…>>` — an extended [TRE regular expression](https://github.com/laurikari/tre), if available, subject to features implemented in *lrexlib*,
+    - `<<lua/regular expression/flags…>>` or `<<lua'regular expression'flags…>>` or `<<lua"regular expression"flags…>>` — a [standard Lua regular expression](https://www.lua.org/pil/20.2.html),
+    - `<<re/regular expression/flags…>>` or `<<re'regular expression'flags…>>` or `<<re"regular expression"flags…>>` — an LPEG [Re](http://www.inf.puc-rio.br/~roberto/lpeg/re.html) "regular expression", with some additional features:
       - `<` — back assertion (`lpeg.B`),
       - ``{` `}`` — constant capture (`lpeg.Cc`),
       - `{# #}` — argument capture (`lpeg.Carg`),
+      - `{flavour/regex/flags}` — the following text will be matched against `flavour` regular expression with `flags`. If match fails, so will the re selector or its part. If match succeeds, position in the string will advance, and all captures from the regular expression will be captured by re as well, but named captures will become anonymous. If `flavour` is omitted, the default flavour from `formatter.config.regex` will be used,
       - optional `i` flag for case insensitive matching;
   - *iterating*:
     - `<<#…>>` for `ipairs()`,
@@ -84,7 +85,7 @@ A selector can be:
   - *function*: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value, `param1`, …, `paramn`, and finally, the whole table, and producing the returned value of the function;
 - *composite*, ordered by priority, from highest to lowest (order of composition can be changed by parentheses; priorities and operators are configurable via `formatter.config.operators`):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
-  - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
+  - `<<selector1 . selector2…>>` — `selector2` applied to each value returned by `selector1`,
   - `<<selector1 : selector2…>>` — `selector1` filtered by `selector2`. Useful in the cases, when it is impossible or difficult to integrate that filter into `selector1`, e.g., `: @@ = 2` to show only the second row returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
   - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
@@ -229,13 +230,13 @@ After changing configuration, call `formatter.initialise()`.
 | pcre"PCRE" | `<<pcre2"^key(?<no>\d+)$">>` | Value |
 | pcre/PCRE/ | `<<pcre2/^key(?<no>\d+)$/>>` | Value |
 | Absent PCRE key | `<</^key(?<no>\d+)$/>>` | nil |
-| Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre2 regular expression "^key(?<no>\d+$" with flags "" does not compile |
+| Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre2 regular expression "^key(?<no>\d+$" with flags "" does not compile: missing closing parenthesis (pattern offset: 15) |
 | Re key, re// | `<<re/"key" { [0-9]+ }/>>` | Value |
 | Re with PCRE | `<<re~"key" {/\d+/}~>>` | Value1 |
 | Re key, re'' | `<<re'"key" { [0-9]+ }'>>` | Value |
 | Re key, re'', case-insensitive | `<<re'"key" { [0-9]+ }'i>>` | Value |
 | Absent re key, re'', case-sensitive | `<<re'"key" { [0-9]+ }'>>` | nil |
-| Broken re | `<<re/"key" {: [0-9]+ }/>>` | LPEG Re selector "key" {: [0-9]+ } does not compile |
+| Broken re | `<<re/"key" {: [0-9]+ }/>>` | LPEG Re selector "key" {: [0-9]+ } does not compile: pattern error near ': [0-9]+ }' |
 | Re key, named capture | `<<re/"key" {:no: [0-9]+ :}/\|<<no>>: <<>>>>` | 1: Value |
 | Absent re key | `<<re/"key" { [0-9]+ }/>>` | nil |
 | PCRE // key and <<>> | `<</^key(?<no>\d+)$/\|<<@>>: <<>>, >>` | key1: Value1, key2: Value2,  |
