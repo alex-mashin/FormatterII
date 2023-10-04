@@ -1,6 +1,6 @@
 # FormatterII
 
-*Version 0.2*
+*Version 0.3*
 
 *FormatterII* is a Lua table querying and formatting tool, in other words, a [template engine](https://en.wikipedia.org/wiki/Template_processor).
 
@@ -61,6 +61,7 @@ A selector can be:
     - `<<__unused>>` is a table of values that were never output,
     - `<<..>>` is the parent table.
     - `<<@>>` is the key of the currently selected value in the parent table.
+    - `<<@@>>` is the counter of the current row returned by table iterator. It can be used to distinguish table items by some natural order, in which they are expecte.
   - `<<dynamic key…>>` — a key to the table that can include macros. The corresponding value will be yielded. If the key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`:
     - if the returned value is userdata containing a compiled LPEG pattern or grammar or a regular expression from lrexlib, it will be used as `lpeg/…/` or `flavoured_regex/…/` selector respectively, i.e., the table will be matched against it. This allows to reuse complex LPEG or regex patterns,
   - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. Any pair of matching non-space non-alphanumeric characters can delimit a regular expression, except characters that have a special meaning in the selector syntax (`().*+,\|@`); and except quotes (`'"`), if regular expression flavour is not specified and the default on is to be used (a quoted string without a flavour prefix will be treated as a plain table key). Below, `//` are used as an ecample of regular expression delimiters. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. All regular expression flavours support `i` flag for case-insensitive matching and a the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
@@ -84,8 +85,10 @@ A selector can be:
 - *composite*, ordered by priority, from highest to lowest (order of composition can be changed by parentheses; priorities and operators are configurable via `formatter.config.operators`):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
   - `<<selector1.selector2…>>` — `selector2` applied to each value returned by `selector1`,
+  - `<<selector1 : selector2…>>` — `selector1` filtered by `selector2`. Useful in the cases, when it is impossible or difficult to integrate that filter into `selector1`, e.g., `: @@ = 2` to show only the second row returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
   - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
+  - `<<selector1 - selector2…>>` — values returned by `selector1`, except value returned by `selector2`,  
   - `<<selector1 , selector2…>>` — values returned by `selector1`, if any; otherwise values of `selector2`.
 
 If a selector (except iterating ones) is preceded with an equal sign, it is applied to table values, not keys. This makes the following syntax possible: `<<key selector = value selector…>>`.
@@ -106,6 +109,7 @@ formatter.config = {
 	default_separator
 				= ', ',			-- default separator.
 	key			= '@',			-- key selector.
+	counter		= '@@',			-- iterator counter.
 	self		= '',			-- self selector.
 	parent		= '..',			-- parent selector.
 	unused		= '__unused',	-- a table of unused items.
@@ -117,16 +121,18 @@ formatter.config = {
 	operators	= {				-- operators over selectors' symbols and priorities.
 		{ ['']	= 'intersect' },
 		{ ['.']	= 'enter' },
+		{ [':'] = 'filter' },
 		{ ['*']	= 'cartesian' },
 		{ ['+']	= 'union' },
+		{ ['-'] = 'except' },
 		{ [',']	= 'first' }
 	},
 	ipairs		= '#',			-- ipairs() selector.
 	pairs		= '$',			-- pairs() selector.
 	regex		= 'pcre2',		-- the default regular expression flavour.
 	regex_jit	= true,			-- load libraries from lrexlib at first use.
-	re		= { 'lualibs/re', 'Module:Re' }
-						-- paths to re Lua library.
+	re			= { 'lualibs/re', 'Module:Re' }
+								-- path to re Lua library.
 }
 ```
 
@@ -225,6 +231,7 @@ After changing configuration, call `formatter.initialise()`.
 | Absent PCRE key | `<</^key(?<no>\d+)$/>>` | nil |
 | Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre2 regular expression "^key(?<no>\d+$" with flags "" does not compile |
 | Re key, re// | `<<re/"key" { [0-9]+ }/>>` | Value |
+| Re with PCRE | `<<re~"key" {/\d+/}~>>` | Value1 |
 | Re key, re'' | `<<re'"key" { [0-9]+ }'>>` | Value |
 | Re key, re'', case-insensitive | `<<re'"key" { [0-9]+ }'i>>` | Value |
 | Absent re key, re'', case-sensitive | `<<re'"key" { [0-9]+ }'>>` | nil |
@@ -242,6 +249,7 @@ After changing configuration, call `formatter.initialise()`.
 | Nested tables, regexes | `<</^key$/./^item$/>>` | Value |
 | Nested tables, outer absent | `<<item.item>>` | nil |
 | Nested tables, upper level as fallback | `<<key\|<<item>>, <<desc>>>>` | Value, Description |
+| Filter and counter | `<</^\d+$/ = /^\d+\s*(px)?$/ : @@ = 2 \|Height: <<>>>>` | Height: 50px |
 | **Functions** |
 | Function | `<<even().#>>` | 102030 |
 | Function with (parameter) | `<<divisible_by (3).#>>` | 1530 |
@@ -255,6 +263,8 @@ After changing configuration, call `formatter.initialise()`.
 | = /pcre/ | `<<= /^Value\d+$/\|<<>><<,>>>>` | Value1, Value2 |
 | /PCRE/ = /pcre/ | `<</^key\d+$/ = /^Value\d+$/>>` | Value1 |
 | Union all | `<< ( set1 + set2 ).# \|<<>><<,>>>>` | Value10, Value11, Value20, Value21 |
+| Filter | `<</^key/ := /^Mediocre\|Acceptable\|Good\|Excellent$/ \|<<>><<,>>>>` | Good, Excellent, Mediocre |
+| Exception | `<</^key/ -= Bad \|<<>><<,>>>>` | Good, Excellent, Mediocre |
 | First non-empty: first | `<< /key\d+/, /item\d+/>>` | Value1 |
 | First non-empty: second | `<< /item\d+/, /key\d+/>>` | Value1 |
 | First non-empty: absent | `<< /item\d+/, /key\d+/>>` | nil |

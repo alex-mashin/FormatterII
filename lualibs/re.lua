@@ -6,6 +6,7 @@
 		* <		-- back assertion	(lpeg.B),
 		* {` `}	-- constant capture	(lpeg.Cc),
 		* {# #}	-- argument capture	(lpeg.Carg),
+		* {/ /} -- a regular expression match,
 		* case_insensitive parametre for compile().
 --]]
 
@@ -42,11 +43,43 @@ local version = _VERSION
 
 -- We need re here.
 local re = {
-	string = string
+	string = string,
+	rex_flavour = 'pcre2'
 }
 
+-- Injecting regular expressions:
+local function load_library (library)
+	if _G [library] then
+		return _G [library]
+	end
+	local ok, lib = pcall (require, library)
+	if not ok or not lib then
+		return nil
+	end
+	return lib
+end
+
+local regex_flavours = (function ()
+	local flavours = m.P (false)
+	local loaded_flavours = {}
+	for _, flavour in ipairs { 'posix', 'pcre2', 'pcre', 'onig', 'tre' } do
+		local lib = load_library ('rex_' .. flavour)
+		if lib then
+			flavours = flavours + m.C (flavour) * m.Cc (lib.new)
+			loaded_flavours [flavour] = lib.new
+		end
+	end
+	local default = re.rex_flavour
+	-- Default rex flavour:
+	if loaded_flavours [default] then
+		flavours = flavours + m.Cc (default) * m.Cc (loaded_flavours [default])
+	end
+	return flavours
+end) ()
+
 -- No more global accesses after this point
-_ENV = nil	 -- does no harm in Lua 5.1
+local pcall = pcall
+_ENV = { pcall = pcall, unpack = table.unpack }
 
 -- @TODO: multibyte characters.
 local any, start = m.P (1), m.P (true)
@@ -175,7 +208,7 @@ local function do_nothing (...)
 end
 
 local string = re.string
-local gmatch, match, upper, lower = string.gmatch, string.match, string.upper, string.lower
+local gmatch, upper, lower = string.gmatch, string.upper, string.lower
 local set = mm.S
 
 local function metagrammar (case_insensitive)
@@ -258,11 +291,31 @@ local function metagrammar (case_insensitive)
 				+ m.P"{}" / mm.Cp
 				+ "{~" * m.V"Exp" * "~}" / mm.Cs
 				+ "{|" * m.V"Exp" * "|}" / mm.Ct
+				-- Inject regular expressions:
+				+ '{' * S * regex_flavours * S
+					* '/' * mm.C (( any - '/' + '\\/') ^ 1) * '/'
+					* mm.C (mm.S 'imsxUX' ^ 0)
+					* S * '}' / function (flavour, compiler, regex, flags)
+						local valid, result = pcall (compiler, regex, flags)
+							if not valid or not result then
+								error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile: ' .. (result or '?'))
+							end
+						return mm.Cmt ( m.P (true), function (s, p)
+							local start, finish, captures = result:tfind (s, p)
+							if not start then
+								return false
+							end
+							if #captures == 0 then
+								captures = { string.sub (s, start, finish) }
+							end
+							return finish + 1, unpack (captures)
+						end)
+					end
 				+ "{" * m.V"Exp" * "}" / mm.C
 				-- {` `} -- constant capture. Inserted for traditio.wiki by Alexander Mashin:
 				+ "{`" * Predef.space^0 * m.C((any - "`")^1) * S * "`}" / mm.Cc
 				-- {# #} == argument capture. Inserted for traditio.wiki by Alexander Mashin:
-				+ "{#" * S * Def * "#}" / getdef			
+				+ "{#" * S * Def * "#}" / getdef
 				+ m.P"." * m.Cc(any)
 				+ (name * -arrow + "<" * name * ">") * m.Cb("G") / NT;
 	  Definition = name * arrow * m.V"Exp";

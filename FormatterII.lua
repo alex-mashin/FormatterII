@@ -1,41 +1,45 @@
 -- https://github.com/alex-mashin/FormatterII
+local p = {
+	VERSION	= '0.3'
+}
+
 --[[
 	Library configuration, alterable by the user.
 --]]
-local p = {
-	config = {
-		string		= string,		-- string library to use.
-		condense	= '_',			-- "condense" (ignore whitespaces, hyphens and underscores) flag.
-		fillers		= '[-_%s]',		-- characters to ignore when the condense flag is used.
-		conditional	= '!',			-- conditional macro flag.
-		optional	= '?',			-- optional macro flag.
-		separator	= ',',			-- separator macro flag.
-		default_separator
-					= ', ',			-- default separator.
-		key			= '@',			-- key selector.
-		self		= '',			-- self selector.
-		parent		= '..',			-- parent selector.
-		unused		= '__unused',	-- a table of unused items.
-		escape		= '\\',			-- escape character.
-		open		= '<<',			-- macro start.
-		pipe		= '|',			-- separator between selector and format string, or between format string and fallback format string.
-		close		= '>>',			-- macro end.
-		unique		= '!1',			-- unique selector for unrepeatable formats.
-		operators	= {				-- operators over selectors' symbols and priorities.
-			{ ['']	= 'intersect' },
-			{ ['.']	= 'enter' },
-			{ ['*']	= 'cartesian' },
-			{ ['+']	= 'union' },
-			{ [',']	= 'first' }
-		},
-		ipairs		= '#',			-- ipairs() selector.
-		pairs		= '$',			-- pairs() selector.
-		regex		= 'pcre2',		-- the default regular expression flavour.
-		regex_jit	= true,			-- load libraries from lrexlib at first use.
-		re			= { 'lualibs/re', 'Module:Re' }
-									-- path to re Lua library.
+p.config = {
+	string		= string,		-- string library to use.
+	condense	= '_',			-- "condense" (ignore whitespaces, hyphens and underscores) flag.
+	fillers		= '[-_%s]',		-- characters to ignore when the condense flag is used.
+	conditional	= '!',			-- conditional macro flag.
+	optional	= '?',			-- optional macro flag.
+	separator	= ',',			-- separator macro flag.
+	default_separator
+				= ', ',			-- default separator.
+	key			= '@',			-- key selector.
+	counter		= '@@',			-- iterator counter.
+	self		= '',			-- self selector.
+	parent		= '..',			-- parent selector.
+	unused		= '__unused',	-- a table of unused items.
+	escape		= '\\',			-- escape character.
+	open		= '<<',			-- macro start.
+	pipe		= '|',			-- separator between selector and format string, or between format string and fallback format string.
+	close		= '>>',			-- macro end.
+	unique		= '!1',			-- unique selector for unrepeatable formats.
+	operators	= {				-- operators over selectors' symbols and priorities.
+		{ ['']	= 'intersect' },
+		{ ['.']	= 'enter' },
+		{ [':'] = 'filter' },
+		{ ['*']	= 'cartesian' },
+		{ ['+']	= 'union' },
+		{ ['-'] = 'except' },
+		{ [',']	= 'first' }
 	},
-	VERSION	= '0.2'
+	ipairs		= '#',			-- ipairs() selector.
+	pairs		= '$',			-- pairs() selector.
+	regex		= 'pcre2',		-- the default regular expression flavour.
+	regex_jit	= true,			-- load libraries from lrexlib at first use.
+	re			= { 'lualibs/re', 'Module:Re' }
+								-- path to re Lua library.
 }
 
 --[[
@@ -369,14 +373,14 @@ local function do_nothing (...)
 	return ...
 end
 
-local fillers = p.config.fillers
 --[[
 	This function removes spaces, hyphens and minuses.
 	@param string str
 	@return str
 --]]
 local function condense (str)
-	return gsub (str, fillers, '')
+	-- do not localise p.config.fillers.
+	return gsub (str, p.config.fillers, '')
 end
 
 --[[
@@ -406,8 +410,6 @@ local function regex2string_iterator (userdata, preprocessor)
 	end)
 end
 
-local regex_jit = p.config.regex_jit
-
 --[[
 	Returns a factory of comparator functions accepting a regular expression.
 		
@@ -416,7 +418,8 @@ local regex_jit = p.config.regex_jit
 		or nil, if the library is not available.
 --]]
 local function regex (flavour)
-	local new_regex = not regex_jit and regex_compiler (flavour) or nil
+	-- do not localise p.config.regex_jit.
+	local new_regex = not p.config.regex_jit and regex_compiler (flavour) or nil
 	return function (expr, flags)
 		local condense_flag, flags = cut_flag (flags, p.config.condense)
 		local condense = condense_flag and condense or do_nothing
@@ -427,14 +430,14 @@ local function regex (flavour)
 				return error_msg (flavour .. ' regular expressions are not available' )
 			end
 		end
-		local valid, compiled = pcall (new_regex, expr, flags)
+		local valid, result = pcall (new_regex, expr, flags)
 		if not valid then
 			return error_msg (
 				flavour .. ' regular expression "' .. expr
-			 .. '" with flags "' .. (flags or '') .. '" does not compile'
+			 .. '" with flags "' .. (flags or '') .. '" does not compile: ' .. (result or '')
 			)
 		end
-		return regex2string_iterator (compiled, condense)
+		return regex2string_iterator (result, condense)
 	end
 end
 
@@ -484,12 +487,12 @@ local function re (expr, flags)
 	local condense_flag, flags = cut_flag (flags, p.config.condense)
 	local condense = condense_flag and condense or do_nothing
 	local case_insensitive, flags = cut_flag (flags, 'i')
-	local valid, compiled = pcall (compile_re, expr, {}, case_insensitive)
+	local valid, result = pcall (compile_re, expr, {}, case_insensitive)
 	if not valid then
-		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile')
+		return error_msg ('LPEG Re selector ' .. expr .. ' does not compile: ' .. (result or '?'))
 	end
-	compiled = Cp() * Ct (compiled) * Cp()
-	return lpeg2string_iterator (compiled, condense)
+	result = Cp() * Ct (result) * Cp()
+	return lpeg2string_iterator (result, condense)
 end
 
 --[[
@@ -553,13 +556,18 @@ local function table_iterator (iterate_value, string_iterator, exact_key)
 	
 	-- Generic case: filtering values or filtering keys with a regular expression:
 	return function (tbl)
+		local counter_token = p.config.counter
 		return wrap (function ()
 			local iterated = tbl and (type (tbl) == 'table' and tbl or { tbl }) or {}
+			local counter = 1
 			for key, value in pairs (iterated) do
 				local iterated_string = iterate_value and value or key
 				for match, captures in string_iterator (iterated_string) do
 					-- @todo: save match and captures somewhere in tbl (not tbl[key]).
+					captures = captures or {}
+					captures [counter_token] = counter -- @@
 					yield (key, value, captures)
+					counter = counter + 1
 				end
 			end
 		end)
@@ -604,7 +612,7 @@ local function function2table_iterator (name, ...)
 		local results = { func (unpack (resolved), unwrapped) }
 		return wrap (function ()
 			for _, result in ipairs (results) do
-				yield (name, result, tbl)
+				yield (name, result --[[, tbl]])
 			end
 		end)
 	end
@@ -653,11 +661,35 @@ function operators.enter (iterator1, iterator2)
 	return function (tbl)
 		return wrap (function ()
 			for key1, value1, captures1 in iterator1 (tbl) do
-				if type (value1) == 'table' then
-					for key2, value2, captures2 in iterator2 (value1) do
-						-- @todo: somehow include key1 ('@@')?
-						yield (key2, value2, merge (captures1, captures2))
-					end
+				local iterated = wrap_table (merge (type (value1) == 'table' and value1 or { value1 }, captures1))
+				for key2, value2, captures2 in iterator2 (iterated) do
+					-- @todo: somehow include key1?
+					yield (key2, value2, merge (captures1, captures2))
+				end
+			end
+		end)
+	end
+end
+
+--[[
+	Returns a table iterator that yields items yielded by the first iterator and
+	filtered by the second one.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
+--]]
+function operators.filter (iterator1, iterator2)
+	return function (tbl)
+		return wrap (function ()
+			for key1, value1, captures1 in iterator1 (tbl) do
+				local iterated = wrap_table (merge (type (value1) == 'table' and value1 or { value1 }, captures1))
+				for key2, value2, captures2 in iterator2 (iterated) do
+					yield (key1, value1, merge (captures1, captures2))
+					break
 				end
 			end
 		end)
@@ -716,6 +748,32 @@ function operators.union (iterator1, iterator2)
 end
 
 --[[
+	Returns a table iterator that yields items yielded by the first iterator but not by the second.
+		
+	@param function iterator1 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@param function iterator2 A function that returns an iterator over a table
+		yielding key, value, captures.
+	@return function A function that returns an iterator over a table
+		yielding key, value, captures.
+--]]
+function operators.except (iterator1, iterator2)
+	return function (tbl)
+		return wrap (function ()
+			local exclude = {}
+			for key2, _, __ in iterator2 (tbl) do
+				exclude [key2] = true
+			end
+			for key1, value1, captures1 in iterator1 (tbl) do
+				if not exclude [key1] then
+					yield (key1, value1, captures1)
+				end
+			end
+		end)
+	end
+end
+
+--[[
 	Returns a table iterator that yields items yielded by the first iterator, if any,
 		and then the second iteratorm if the first yields nothing.
 		
@@ -749,13 +807,13 @@ end
 	@param function func ipairs or pairs.
 	@return false (not nil) for absent values.
 --]]
-local function iterator (func)
+local function iterator (func, ...)
+	local args = {...}
 	return function (tbl)
 		return wrap (function ()
 			local numbered = {}
 			local iterated = tbl and (type (tbl) == 'table' and tbl or { tbl }) or {}
-			for key, item in func (iterated) do
-				-- @todo: add parent name?
+			for key, item in func (iterated, unpack (args)) do
 				yield (key, item)
 			end
 		end)
@@ -889,7 +947,7 @@ end) ()
 local P, S, V = lpeg.P, lpeg.S, lpeg.V
 local C, Cg, Cb, Cmt, Cf, Cc, Cs = lpeg.C, lpeg.Cg, lpeg.Cb, lpeg.Cmt, lpeg.Cf, lpeg.Cc, lpeg.Cs
 local locale = lpeg.locale()
-local any, never, space, alnum = P(1), P(false), locale.space, locale.alnum
+local any, never, space, alnum, digit = P(1), P(false), locale.space, locale.alnum, locale.digit
 
 --[[
 	Returns an LPEG rule accepting any symbol except the arguments.
@@ -946,7 +1004,6 @@ local function key_sum (tbl)
 	end
 	return value_sum (keys)
 end
-
 
 local equals, parentheses, quotes, comma = '=', { '(', ')' }, S[['"]], ','
 
@@ -1094,10 +1151,23 @@ local function make_meta_grammar()
 					+ V'ipairs' + V'pairs' + V'quoted' + V'func' + V'unquoted' + V'dynamic',
 		
 		-- # (ipairs() iterator):
-		ipairs		= P (p.config.ipairs) * Cc (iterator (ipairs)),
+		ipairs		= P (p.config.ipairs) * (
+			-- # n:
+			Cc (function (tbl, row)
+				return wrap (function ()
+					for key, value in ipairs (tbl) do
+						if key == tonumber (row) then
+							yield (key, value)
+						end
+					end
+				end)
+			end) * space ^ 0 * C  ( digit ^ 1 ) +
+			-- #:
+			Cc (ipairs)
+		) / iterator,		
 		
 		-- $ (pairs() iterator):
-		pairs		= P (p.config.pairs) * Cc (iterator (--[[ordered_]]pairs)),
+		pairs		= P (p.config.pairs) * Cc (iterator (pairs)),
 		
 		-- Optional equal sign, for selectors, filtering values:
 		equals		= ( equals * Cc (true) + Cc (false) ) * space ^ 0,
