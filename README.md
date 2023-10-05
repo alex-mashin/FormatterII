@@ -279,6 +279,6 @@ After changing configuration, call `formatter.initialise()`.
 | Separator, header and footer | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
 | Separator, fallback | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
 | **printf()-style formatting** |
-| Float format, limited precision | `<<no|%.3f>>` | 3.142 |
+| Float format, limited precision | `<<no\|%.3f>>` | 3.142 |
 # Credits
 *FormatterII* is written by Alexander Mashin in 2022-2023. *Lua* and *LPEG* are created by Roberto Ierusalimschy. *lrexlib* is written by Reuben Thomas and Shmuel Zeigerman.
