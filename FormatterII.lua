@@ -833,6 +833,7 @@ local empty = ''
 	@return { body = function, separator = function } Two formatter functions that accept a table and return a string: for the loop body and for the separator.
 --]]
 local function make_formatter (chunks)
+	local format = p.config.string.format
 	return {
 		body = function (value)
 			-- <<!>> present. Even constant format should fail:
@@ -847,7 +848,7 @@ local function make_formatter (chunks)
 				if type (chunk) == 'function' then
 					expanded = chunk (value)
 				else
-					expanded = chunk
+					expanded = format (chunk, value)
 				end
 				if expanded == nil then
 					-- propagate nil up:

@@ -219,6 +219,9 @@ local cases = {
 			'Header 1: Value1, 2: Value2, 3: Value3 Footer'
 		},
 		{ 'Separator, fallback', {}, '<<|Header <<#|<<@>>: <<key>><<,>>>> Footer|Fallback>>', 'Fallback' },
+	},
+	{ title = 'printf()-style format',
+		{ 'Float format, limited precision', { no = 3.1415926535 }, '<<no|%.3f>>', '3.142' }
 	}
 }
 local tested

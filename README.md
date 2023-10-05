@@ -37,7 +37,9 @@
 
 ## Format string syntax
 ### Format string
-A *format string* is a plain literal text with optional embedded *macros* (`<<…>>`). If a macro returns `nil`, then the whole format string will return `nil` and this will be propagated all the way up. But an *optional macro* (`<<?…>>`) will return an empty string instead of `nil`.
+A *format string* is a plain literal text with optional embedded *macros* (`<<…>>`). Each literal chunk between macros is treated as a `printf()`-style format that is passed to [`string.format ()`](http://www.lua.org/manual/5.1/manual.html#pdf-string.format) function; in particular, if the string is a plain literal, it is returned as is.
+
+If a macro returns `nil`, then the whole format string will return `nil` and this will be propagated all the way up. But an *optional macro* (`<<?…>>`) will return an empty string instead of `nil`.
 
 Any format string has a *context*: the outermost macro's context is the first argument to `format()`; and non-empty selectors move context to the selected fields.
 
@@ -276,5 +278,7 @@ After changing configuration, call `formatter.initialise()`.
 | Separator, dynamic | `<<#\|<<@>>: <<key>><<,\|<<sep>>>>>>` | 1: Value1; 2: Value2; 3: Value3 |
 | Separator, header and footer | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer>>` | Header 1: Value1, 2: Value2, 3: Value3 Footer |
 | Separator, fallback | `<<\|Header <<#\|<<@>>: <<key>><<,>>>> Footer\|Fallback>>` | Fallback |
+| **printf()-style formatting** |
+| Float format, limited precision | `<<no|%.3f>>` | 3.142 |
 # Credits
 *FormatterII* is written by Alexander Mashin in 2022-2023. *Lua* and *LPEG* are created by Roberto Ierusalimschy. *lrexlib* is written by Reuben Thomas and Shmuel Zeigerman.
