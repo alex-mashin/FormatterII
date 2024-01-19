@@ -38,10 +38,14 @@ p.config = {
 	pairs		= '$',			-- pairs() selector.
 	regex		= 'pcre2',		-- the default regular expression flavour.
 	regex_jit	= true,			-- load libraries from lrexlib at first use.
-	re			= { 'lualibs/re', 'Module:Re' }
-								-- path to re Lua library.
+	lib_paths	= {
+		rex_pcre	= { 'rex_pcre', 'rex_pcre2' },
+		rex_pcre2	= { 'rex_pcre2', 'rex_pcre' },
+		re			= { 'lualibs/re', 'Module:Re' }
+	}
 }
 
+local paths = p.config.lib_paths
 --[[
 	Load a named library or return already loaded.
 	@param string|table library
@@ -51,11 +55,13 @@ local function load_library (library)
 	if _G [library] then
 		return _G [library]
 	end
-	local ok, lib = pcall (require, library)
-	if not ok or not lib then
-		return nil
+	for _, path in ipairs (paths [library] or { library }) do
+		local ok, lib = pcall (require, path)
+		if ok and lib then
+			return lib
+		end
 	end
-	return lib
+	return nil -- failed to load the library.
 end
 
 --[[
@@ -444,13 +450,12 @@ end
 -- LPeg's re module:
 local lpeg = load_library 'lpeg'
 local Cp, Ct = lpeg.Cp, lpeg.Ct
-local re_found, re_lib
-for _, path in ipairs (p.config.re) do
-	re_found, re_lib = pcall (require, path)
-	if re_found then break end
+local re_lib = load_library 're'
+local compile_re
+if re_lib then
+	re_lib.string = p.config.string
+	compile_re = re_lib.compile
 end
-re_lib.string = p.config.string
-local compile_re = re_lib.compile
 
 --[[
 	Make a string iterator from a compiled LPEG userdata.

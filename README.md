@@ -21,10 +21,10 @@
 *FormatterII* is fully declarative. The only way to run arbitrary Lua code is to add a member function to the formatted table and invoke it from the template.
 
 ## Requirements
-- Lua 5.1, 5.2 or LuaJIT; slightly limited support (no pcre-flavoured regular expressions; but pcre2 is enabled) for Lua 5.3 and 5.4,
+- Lua 5.1, 5.2, 5.3, 5.4 or LuaJIT,
  - `coroutine` table ought to be available,
 - Lua [LPEG](http://www.inf.puc-rio.br/~roberto/lpeg/) library,
-- [lrexlib](https://github.com/rrthomas/lrexlib) (optional; needed for GNU, Oniguruma, POSIX, PCRE, PCRE2 and Tre regular expressions).
+- [lrexlib](https://github.com/rrthomas/lrexlib) (optional; needed for GNU, Oniguruma, POSIX, PCRE, PCRE2 and Tre regular expressions). Note that PCRE2 regular expressions are not available, *FormatterII* will attempt to use PCRE, and vice versa.
 
 ## Usage
 - `local formatter = require 'FormatterII'` — require library,
@@ -67,9 +67,9 @@ A selector can be:
   - `<<dynamic key…>>` — a key to the table that can include macros. The corresponding value will be yielded. If the key is absent, it will be looked all the way up in the parent tables, to the globals table `_G`:
     - if the returned value is userdata containing a compiled LPEG pattern or grammar or a regular expression from lrexlib, it will be used as `lpeg/…/` or `flavoured_regex/…/` selector respectively, i.e., the table will be matched against it. This allows to reuse complex LPEG or regex patterns,
   - *regular expression*. At least, two flavours (standard Lua and LPEG Re) are available, and more can be made available with *[lrexlib](https://github.com/rrthomas/lrexlib)*. Any pair of matching non-space non-alphanumeric characters can delimit a regular expression, except characters that have a special meaning in the selector syntax (`().:*+-,\|@`); and except quotes (`'"`), if regular expression flavour is not specified, the default one is to be used; but a quoted string without a flavour prefix will be treated as a plain table key. Below, `//` are used as an example of regular expression delimiters. The possible flags include `AiDsxXmUu_`, but some of them may be unavailable to a certain flavour. All regular expression flavours support `i` flag for case-insensitive matching and a the non-standard *condense* flag (`_`) meaning that spaces, hypens and underscores will be ignored:
-    - `<</regular expression/flags…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, if available. Quotes `'"` cannot be used to delimit a regular expression of the default flavour,
-    - `<<pcre2/regular expression/flags…>>` or `<<pcre2'regular expression'flags…>>` or `<<pcre2"regular expression"flags…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), if available,
-    - `<<pcre/regular expression/flags…>>` or `<<pcre'regular expression'flags…>>` or `<<pcre"regular expression"flags…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), if available,
+    - `<</regular expression/flags…>>` — a regular expression of the flavour set by `formatter.config.regex`, by default, `pcre2`, falling back to `pcre`, if available. Quotes `'"` cannot be used to delimit a regular expression of the default flavour,
+    - `<<pcre2/regular expression/flags…>>` or `<<pcre2'regular expression'flags…>>` or `<<pcre2"regular expression"flags…>>` — a [Perl-compatible regular expression v2](https://www.pcre.org/current/doc/html/), falling back to `pcre`, if available,
+    - `<<pcre/regular expression/flags…>>` or `<<pcre'regular expression'flags…>>` or `<<pcre"regular expression"flags…>>` — a [Rerl-compatible regular expression v1](https://www.pcre.org/original/doc/html/), falling back to `pcre2`, if available,
     - `<<gnu/regular expression/flags…>>` or `<<gnu'regular expression'flags…>>` or `<<gnu"regular expression"flags…>>` — an extended [GNU-compatible regular expression](https://www.gnu.org/software/grep/manual/html_node/Regular-Expressions.html), if available,
     - `<<onig/regular expression/flags…>>` or `<<onig'regular expression'flags…>>` or `<<onig"regular expression"flags…>>` — an [Oniguruma regular expression](https://github.com/kkos/oniguruma/blob/master/doc/RE), if available, subject to features implemented in *lrexlib*,
     - `<<posix/regular expression/flags…>>` or `<<posix'regular expression'flags…>>` or `<<posix"regular expression"flags…>>` — an extended [POSIX regular expression](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html), if available,
@@ -229,7 +229,8 @@ After changing configuration, call `formatter.initialise()`.
 | /PCRE/_ | `<</^key(?<no>\d+)$/_>>` | Value |
 | /PCRE/i_ | `<</^key(?<no>\d+)$/i_>>` | Value |
 | /PCRE/ and @ | `<</^key(?<no>\d+)$/\|<<@>>: <<no>> - <<>>, >>` | key1: 1 - Value1, key3: 3 - Value3, key2: 2 - Value2,  |
-| pcre"PCRE" | `<<pcre2"^key(?<no>\d+)$">>` | Value |
+| pcre2"PCRE" | `<<pcre2"^key(?<no>\d+)$">>` | Value |
+| pcre"PCRE" | `<<pcre"^key(?<no>\d+)$">>` | Value |
 | pcre/PCRE/ | `<<pcre2/^key(?<no>\d+)$/>>` | Value |
 | Absent PCRE key | `<</^key(?<no>\d+)$/>>` | nil |
 | Broken PCRE | `<</^key(?<no>\d+$/>>` | pcre2 regular expression "^key(?<no>\d+$" with flags "" does not compile: missing closing parenthesis (pattern offset: 15) |
