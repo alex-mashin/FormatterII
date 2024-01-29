@@ -52,10 +52,10 @@ local paths = p.config.lib_paths
 	@return table
 --]]
 local function load_library (library)
-	if _G [library] then
-		return _G [library]
-	end
 	for _, path in ipairs (paths [library] or { library }) do
+		if _G [path] then
+			return _G [path]
+		end
 		local ok, lib = pcall (require, path)
 		if ok and lib then
 			return lib
