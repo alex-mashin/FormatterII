@@ -296,19 +296,32 @@ local function metagrammar (case_insensitive)
 					* '/' * mm.C (( any - '/' + '\\/') ^ 1) * '/'
 					* mm.C (mm.S 'imsxUX' ^ 0)
 					* S * '}' / function (flavour, compiler, regex, flags)
+						local absolute_start = false
+						if string.sub (regex, 1, 1) == '^' then
+							-- Anchoring to string's absolute beginning is required:
+							absolute_start = true
+						else
+							-- Force anchoring to current position:
+							regex = '^' .. regex
+						end
 						local valid, result = pcall (compiler, regex, flags)
 							if not valid or not result then
 								error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile: ' .. (result or '?'))
 							end
 						return mm.Cmt ( m.P (true), function (s, p)
-							local start, finish, captures = result:tfind (s, p)
+							if absolute_start and p > 1 then
+								-- Not the beginning of the string, so already failed:
+								return false
+							end
+							local remainder = string.sub (s, p)
+							local start, finish, captures = compiled:tfind (remainder)
 							if not start then
 								return false
 							end
 							if #captures == 0 then
-								captures = { string.sub (s, start, finish) }
+								captures = { string.sub (remainder, 1, finish) }
 							end
-							return finish + 1, unpack (captures)
+							return p + finish, unpack (captures))
 						end)
 					end
 				+ "{" * m.V"Exp" * "}" / mm.C
