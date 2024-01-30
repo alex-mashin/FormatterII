@@ -304,10 +304,10 @@ local function metagrammar (case_insensitive)
 							-- Force anchoring to current position:
 							regex = '^' .. regex
 						end
-						local valid, result = pcall (compiler, regex, flags)
-							if not valid or not result then
-								error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile: ' .. (result or '?'))
-							end
+						local valid, compiled = pcall (compiler, regex, flags)
+						if not valid or not compiled then
+							error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile: ' .. (result or '?'))
+						end
 						return mm.Cmt ( m.P (true), function (s, p)
 							if absolute_start and p > 1 then
 								-- Not the beginning of the string, so already failed:
@@ -321,7 +321,7 @@ local function metagrammar (case_insensitive)
 							if #captures == 0 then
 								captures = { string.sub (remainder, 1, finish) }
 							end
-							return p + finish, unpack (captures))
+							return p + finish, unpack (captures)
 						end)
 					end
 				+ "{" * m.V"Exp" * "}" / mm.C
