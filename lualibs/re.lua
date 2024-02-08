@@ -47,39 +47,50 @@ local re = {
 	rex_flavour = 'pcre2'
 }
 
--- Injecting regular expressions:
+local paths = {
+	rex_pcre	= { 'rex_pcre', 'rex_pcre2' },
+	rex_pcre2	= { 'rex_pcre2', 'rex_pcre' }
+}
+--[[
+	Load a named library or return already loaded.
+	@param string|table library
+	@return table
+--]]
 local function load_library (library)
-	if _G [library] then
-		return _G [library]
+	for _, path in ipairs (paths [library] or { library }) do
+		if _G [path] then
+			return _G [path]
+		end
+		local ok, lib = pcall (require, path)
+		if ok and lib then
+			return lib
+		end
 	end
-	local ok, lib = pcall (require, library)
-	if not ok or not lib then
-		return nil
-	end
-	return lib
+	return nil -- failed to load the library.
 end
 
 local regex_flavours = (function ()
 	local flavours = m.P (false)
-	local loaded_flavours = {}
+	local loaded = {}
 	for _, flavour in ipairs { 'posix', 'pcre2', 'pcre', 'onig', 'tre' } do
 		local lib = load_library ('rex_' .. flavour)
 		if lib then
 			flavours = flavours + m.C (flavour) * m.Cc (lib.new)
-			loaded_flavours [flavour] = lib.new
+			loaded [flavour] = lib.new
 		end
 	end
 	local default = re.rex_flavour
 	-- Default rex flavour:
-	if loaded_flavours [default] then
-		flavours = flavours + m.Cc (default) * m.Cc (loaded_flavours [default])
+	if loaded [default] then
+		flavours = flavours + m.Cc (default) * m.Cc (loaded [default])
 	end
 	return flavours
 end) ()
 
+local pcall, unpack = pcall, unpack or table.unpack
+
 -- No more global accesses after this point
-local pcall = pcall
-_ENV = { pcall = pcall, unpack = table.unpack }
+_ENV = nil	 -- does no harm in Lua 5.1
 
 -- @TODO: multibyte characters.
 local any, start = m.P (1), m.P (true)
@@ -208,7 +219,7 @@ local function do_nothing (...)
 end
 
 local string = re.string
-local gmatch, upper, lower = string.gmatch, string.upper, string.lower
+local gmatch, match, upper, lower = string.gmatch, string.match, string.upper, string.lower
 local set = mm.S
 
 local function metagrammar (case_insensitive)
@@ -305,10 +316,11 @@ local function metagrammar (case_insensitive)
 							regex = '^' .. regex
 						end
 						local valid, compiled = pcall (compiler, regex, flags)
-						if not valid or not compiled then
-							error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile: ' .. (result or '?'))
-						end
-						return mm.Cmt ( m.P (true), function (s, p)
+							if not valid or not compiled then
+								error (flavour .. ' regular expression /' .. regex .. '/' .. (flags or '') .. ' does not compile')
+							end
+						return mm.Cmt ( any, function (s, p)
+							local p = p - 1 -- one character has been consumed by any, so that a loop containg only {//} is never empty.
 							if absolute_start and p > 1 then
 								-- Not the beginning of the string, so already failed:
 								return false
@@ -390,3 +402,4 @@ re.compile, re.match, re.find, re.gsub, re.updatelocale = compile, match, find, 
 if version == "Lua 5.1" then _G.re = re end
 
 return re
+
