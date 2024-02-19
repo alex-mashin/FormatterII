@@ -336,11 +336,11 @@ local function metagrammar (case_insensitive)
 							return p + finish, unpack (captures)
 						end)
 					end
-				+ "{" * m.V"Exp" * "}" / mm.C
 				-- {` `} -- constant capture. Inserted for traditio.wiki by Alexander Mashin:
 				+ "{`" * Predef.space^0 * m.C((any - "`")^1) * S * "`}" / mm.Cc
 				-- {# #} == argument capture. Inserted for traditio.wiki by Alexander Mashin:
 				+ "{#" * S * Def * "#}" / getdef
+				+ "{" * m.V"Exp" * "}" / mm.C
 				+ m.P"." * m.Cc(any)
 				+ (name * -arrow + "<" * name * ">") * m.Cb("G") / NT;
 	  Definition = name * arrow * m.V"Exp";
