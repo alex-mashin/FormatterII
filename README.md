@@ -91,7 +91,7 @@ A selector can be:
   - `<<selector1 : selector2…>>` — `selector1` filtered by `selector2`. Useful in the cases, when it is impossible or difficult to integrate that filter into `selector1`, e.g., `: @@ = 2` to show only the second row returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
   - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
-  - `<<selector1 - selector2…>>` — values returned by `selector1`, except value returned by `selector2`,  
+  - `<<selector1 - selector2…>>` — values returned by `selector1`, except values returned by `selector2`,  
   - `<<selector1 , selector2…>>` — values returned by `selector1`, if any; otherwise values of `selector2`.
 
 If a selector (except iterating ones) is preceded with an equal sign, it is applied to table values, not keys. This makes the following syntax possible: `<<key selector = value selector…>>`.
