@@ -87,7 +87,7 @@ A selector can be:
   - *function*: `<<func (param1, …, paramn)…>>` will call `func` field of the type `function` of the formatted value, passing to it the formatted value, `param1`, …, `paramn`, and finally, the whole table, and producing the returned value of the function;
 - *composite*, ordered by priority, from highest to lowest (order of composition can be changed by parentheses; priorities and operators are configurable via `formatter.config.operators`):
   - `<<selector1 selector2…>>` — an intersection of `selector1` and `selector2`,
-  - `<<selector1 . selector2…>>` — `selector2` applied to each value returned by `selector1`,
+  - `<<selector1 . selector2…>>` — `selector2` applied to each values returned by `selector1`,
   - `<<selector1 : selector2…>>` — `selector1` filtered by `selector2`. Useful in the cases, when it is impossible or difficult to integrate that filter into `selector1`, e.g., `: @@ = 2` to show only the second row returned by `selector1`,
   - `<<selector1 * selector2…>>` — a Cartesian product of `selector1` and `selector2`,
   - `<<selector1 + selector2…>>` — values returned by `selector1`, followed by values of `selector2`,
